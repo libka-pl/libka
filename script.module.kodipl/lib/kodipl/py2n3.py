@@ -62,6 +62,8 @@ if not hasattr(inspect, 'getfullargspec'):
 
         Missing inspect.getfullargspec implementation for older Python then 3.0.
         """
+        if not inspect.ismethod(func) and not inspect.isfunction(func):
+            func = getattr(func, '__call__', func)
         spec = inspect.getargspec(func)
         return FullArgSpec(*(spec + ([], None, {})))
 

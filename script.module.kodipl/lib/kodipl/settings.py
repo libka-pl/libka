@@ -6,7 +6,7 @@ if PY2:
 from future.utils import python_2_unicode_compatible, text_type, binary_type
 
 from collections import namedtuple
-from kodi_six import xbmcplugin
+# from kodi_six import xbmcplugin
 
 
 Call = namedtuple('Call', 'method args')
@@ -56,24 +56,29 @@ class Settings(object):
             return self._data[key]
         except KeyError:
             pass
-        value = xbmcplugin.getSetting(self._addon.handle, key)
+        # value = xbmcplugin.getSetting(self._addon.handle, key)
+        value = self._addon.xbmc_addon.getSetting(key)
         self._data[key] = value
         return value
 
     def set(self, key, value):
         """Set setting. Convert to string."""
-        if key is None:
+        from kodipl.logs import flog
+        flog('Settings.set({key!r}, {value!r})...')
+        if value is None:
             value = ''
-        elif key is False:
+        elif value is False:
             value = 'false'
-        elif key is True:
+        elif value is True:
             value = 'true'
         elif isinstance(value, binary_type):
             value = value.decode('utf-8')
         elif not isinstance(value, text_type):
             value = text_type(value)
         self._data[key] = value
-        return xbmcplugin.setSetting(self._addon.handle, key, value)
+        # return xbmcplugin.setSetting(self._addon.handle, key, value)
+        flog('   ----> {value!r}')
+        return self._addon.xbmc_addon.setSetting(key, value)
 
     def get_auto(self, key, default=None):
         """Get setting and guess a type."""
@@ -115,7 +120,7 @@ class Settings(object):
         self.set(key, value)
 
     def __delitem__(self, key, value):
-        self.set(key, '')
+        self.set(key, None)
 
     def __getattr__(self, key):
         """Get unknown attribute. Try xbmcplugin.Settings, xbmcplugin.Addon, read setting."""
@@ -145,4 +150,4 @@ class Settings(object):
         if key.startswith('_'):
             super(Settings, self).__delattr__(key)
         else:
-            self.set(key, '')
+            self.set(key, None)

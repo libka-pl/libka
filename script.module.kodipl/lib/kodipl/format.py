@@ -189,6 +189,11 @@ class SafeFormatter(string.Formatter):
             return '{%r:%r}' % (value, input_spec)
 
 
+def safefmt(fmt, *args, **kwargs):
+    """Realize safe string formatting."""
+    return SafeFormatter().vformat(fmt, args, kwargs)
+
+
 def vfstr(fmt, args, kwargs, depth=1):
     """Realize f-string formatting."""
     frame = currentframe().f_back
@@ -198,7 +203,10 @@ def vfstr(fmt, args, kwargs, depth=1):
     data.update(frame.f_globals)
     data.update(frame.f_locals)
     data.update(kwargs)
-    return SafeFormatter().vformat(fmt, args, data)
+    functions = {f.__name__: f for f in (
+        dir, vars,
+    )}
+    return SafeFormatter(functions=functions).vformat(fmt, args, data)
 
 
 def fstr(*args, **kwargs):
