@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="script.module.kodipl" name="Kodi-PL Module" version="0.0.1" provider-name="rysson">
+	<requires>
+		<import addon="script.module.requests" />
+		<import addon="script.module.urllib3" />
+		<!-- <import addon="script.module.inputstreamhelper" version="0.3.3"/> -->
+		<import addon="script.module.kodi-six" />
+	</requires>
+	<extension point="xbmc.python.module" library="lib">
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en_GB">Helper library for Kodi Addons</summary>
+		<platform>all</platform>
+		<license>MIT</license>
+		<source>https://github.com/kodi-pl/kodipl/script.module.kodipl</source>
+		<news>v0.0.1
+[new] initial</news>
+	</extension>
+</addon>
