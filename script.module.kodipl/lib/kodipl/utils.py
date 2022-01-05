@@ -200,3 +200,14 @@ def encode_url(url, path=None, params=None, raw=None):
         return url
     sep = '&' if '?' in url else '?'
     return '%s%s%s' % (url, sep, encode_params(params=params, raw=raw))
+
+
+def setdefaultx(dct, key, *values):
+    """
+    Set dict.default() for first non-None value.
+    """
+    for value in values:
+        if value is not None:
+            dct.setdefault(key, value)
+            break
+    return dct

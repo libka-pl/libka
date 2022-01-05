@@ -205,6 +205,7 @@ def vfstr(fmt, args, kwargs, depth=1):
     data.update(kwargs)
     functions = {f.__name__: f for f in (
         dir, vars,
+        str,
     )}
     return SafeFormatter(functions=functions).vformat(fmt, args, data)
 

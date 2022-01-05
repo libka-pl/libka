@@ -7,7 +7,7 @@ import sys
 import re
 from contextlib import contextmanager
 from collections import namedtuple
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 # from functools import wraps
 from inspect import ismethod
 # from future.utils import text_type, binary_type
@@ -16,16 +16,26 @@ from inspect import getfullargspec
 from kodipl.py2n3 import get_method_self
 from kodipl.utils import parse_url, encode_url
 from kodipl.utils import get_attr
+from kodipl.utils import setdefaultx
 from kodipl.settings import Settings
 from kodipl.kodi import version_info as kodi_ver
 from kodipl.format import safefmt
 from kodipl.logs import log, flog
+from kodipl.resources import Resources
+from kodipl.kodi import K18
+from kodi_six import xbmc
 from kodi_six import xbmcgui
 from kodi_six import xbmcplugin
 from kodi_six.xbmcaddon import Addon as XbmcAddon
 
 
-Call = namedtuple('Call', 'method args')
+#: Call descrtiption
+#: - method - function or method to call
+#: - params - simple query (keywoard) arguments, passed directly in URL
+#: - args - raw positional arguments, pickled
+#: - kwargs - raw keywoard arguments, pickled
+Call = namedtuple('Call', 'method params args kwargs')
+Call.__new__.__defaults__ = (None, None)
 
 EndpointEntry = namedtuple('EndpointEntry', 'path title')
 
@@ -42,7 +52,7 @@ def entry(method=None, path=None, title=None):
 
     def decorator(method):
         def make_call(**kwargs):
-            return Call(method, ((), kwargs))
+            return Call(method, kwargs)
 
         if path is not None:
             if ismethod(method):
@@ -57,14 +67,14 @@ def entry(method=None, path=None, title=None):
     return decorator
 
 
-def fullcall(method, *args, **kwargs):
-    """Addon action with arguments. Syntax suger. Don't use `args`. """
-    return Call(method, (args, kwargs))
-
-
-def call(method, **kwargs):
+def call(method, **params):
     """Addon action with arguments. Syntax suger. """
-    return Call(method, ((), kwargs))
+    return Call(method, params)
+
+
+def raw_call(method, *args, **kwargs):
+    """Addon action with raw arguments. Syntax suger. Don't use it."""
+    return Call(method, (), args, kwargs)
 
 
 @python_2_unicode_compatible
@@ -76,9 +86,9 @@ class Request(object):
     def __init__(self, url, encoded_keys=None):
         self.url = parse_url(url, encoded_keys)
         self.params = self.url.args
-        flog('XXXXX: argv: {sys.argv}')
-        flog('XXXXX: url:  {list(self.url)}')
-        flog('XXXXX: req={self.url}, link={self.url.link!r}, params={self.params!r}')
+        # flog('XXXXX: argv: {sys.argv}')
+        # flog('XXXXX: url:  {list(self.url)}')
+        # flog('XXXXX: req={self.url}, link={self.url.link!r}, params={self.params!r}')
 
 
 @python_2_unicode_compatible
@@ -89,10 +99,10 @@ class Addon(object):
 
     #: Only method with @entry is allowed if True, else any method
     SAFE_CALL = False
-    #: Default root (home) entry method name.
-    ROOT_ENTRY = "root"
+    #: Default root (home) entry method name or list of methods (find first).
+    ROOT_ENTRY = ('home', 'root')
 
-    _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\d+)\]')
+    _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
 
     def __init__(self, argv=None):
         if argv is None:
@@ -115,9 +125,20 @@ class Addon(object):
         self._routes = []
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
         self.colors = {'gray': 'gray'}
+        #: Resources
+        self.resources = Resources(self)
 
     def __repr__(self):
         return 'Addon(%r, %r)' % (self.id, str(self.req.url))
+
+    def info(self, key):
+        """Get XBMC addon info (like "path", "version"...)."""
+        return self.xbmc_addon.getAddonInfo(key)
+
+    @property
+    def media(self):
+        """Media resources."""
+        return self.resources.media
 
     def mkentry(self, title, endpoint=None):
         """Helper. Returns (title, url) for given endpoint."""
@@ -131,7 +152,7 @@ class Addon(object):
                 title, endpoint = None, title
         params = {}
         if isinstance(endpoint, Call):
-            endpoint, (_, params) = endpoint.method, endpoint.args
+            endpoint, params = endpoint.method, endpoint.params
         if ismethod(endpoint):
             obj = get_method_self(endpoint)
             assert obj == self
@@ -172,6 +193,8 @@ class Addon(object):
         #     path = path[:1]
         return encode_url(self.req.url.link, path=path, params=kwargs)
 
+    url_for = mkurl
+
     def dispatcher(self, root=None, missing=None):
         """
         Dispatcher. Call pointed method with request arguments.
@@ -191,14 +214,21 @@ class Addon(object):
                 handler = get_attr(self, path, sep='/')
             else:
                 if root is None:
-                    handler = getattr(self, self.ROOT_ENTRY, None)
+                    if self.ROOT_ENTRY:
+                        if isinstance(self.ROOT_ENTRY, str):
+                            handler = getattr(self, self.ROOT_ENTRY, None)
+                        elif isinstance(self.ROOT_ENTRY, Sequence):
+                            for name in self.ROOT_ENTRY:
+                                handler = getattr(self, name, None)
+                                if handler is not None:
+                                    break
                 else:
                     handler = root
         if handler is None:
             if missing is None:
                 raise ValueError('Missing endpoint for %s (req: %s)' % (path, self.req.url))
             handler = missing
-        # get pointed method specifiactaion
+        # get pointed method specification
         spec = getfullargspec(handler)
         assert spec.args
         assert spec.args[0] == 'self'
@@ -208,7 +238,7 @@ class Addon(object):
         if spec.args and spec.args[0] == 'self':
             pass
             # if not PY3:
-            #     # fix unbound mathod in Py2
+            #     # fix unbound method in Py2
             #     args.append(self)
         if spec.defaults:
             # first fill default method arguments
@@ -254,6 +284,17 @@ class Addon(object):
         """Deprecated. Use Addon.settings()."""
         self.xbmc_addon.openSettings()
 
+    def builtin(self, command):
+        """Execute Kodi build-in command."""
+        xbmc.executebuiltin(command)
+
+    def refresh(self, endpoint=None):
+        """Execute Kodi build-in command."""
+        xbmc.executebuiltin('Container.Refresh(%s)' % (endpoint or ''))
+
+    def get_default_art(self, name):
+        """Returns path to default art."""
+
 
 @python_2_unicode_compatible
 class Plugin(Addon):
@@ -268,13 +309,16 @@ class ListItem(object):
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, title, url=None, folder=None):
-        if isinstance(title, xbmcgui.ListItem):
-            self._kodipl_item = title
+    def __init__(self, name, url=None, folder=None, type='video'):
+        if isinstance(name, xbmcgui.ListItem):
+            self._kodipl_item = name
         else:
-            self._kodipl_item = xbmcgui.ListItem(title)
+            self._kodipl_item = xbmcgui.ListItem(name)
         self._kodipl_url = url
         self._kodipl_folder = folder
+        self.type = type
+        self._info = {}
+        self._kodipl_item.setInfo(self.type, self._info)
 
     def __repr__(self):
         return 'ListItem(%r)' % self._kodipl_item
@@ -294,11 +338,67 @@ class ListItem(object):
         self.setIsFolder(folder)
         self._kodipl_folder = folder
 
+    @property
+    def label(self):
+        return self.getLabel()
+
+    @label.setter
+    def label(self, label):
+        self.setLabel(label)
+
+    @property
+    def info(self):
+        return self._info
+
+    def get_info(self, info):
+        """Get single info value or None if not exists."""
+        return self._info.get(info)
+
+    def set_info(self, info, value=None):
+        """
+        Set info value or info dict.
+
+        set_info(name, value)
+        set_info({'name': 'value', ...})
+        """
+        if isinstance(info, Mapping):
+            if value is not None:
+                raise TypeError('Usage: set_info(name, value) or set_info(dict)')
+            self._info.update(info)
+        else:
+            self._info[info] = value
+        self._kodipl_item.setInfo(self.type, self._info)
+
+    def setInfo(self, type, infoLabels):
+        """See Kodi ListItem.setInfo()."""
+        if self.type is None:
+            self.type = type
+        if type != self.type:
+            raise ValueError('Type mismatch %r != %r' % (self.type, type))
+        self._info.update(infoLabels)
+        self._kodipl_item.setInfo(self.type, self._info)
+
+    @property
+    def title(self):
+        return self._info.get('title')
+
+    @title.setter
+    def title(self, title):
+        self._info['title'] = title
+        self._kodipl_item.setInfo(self.type, self._info)
+
+
+Sort = namedtuple('Sort', 'method labelMask label2Mask')
+Sort.__new__.__defaults__ = (None, None)
+Sort.auto = 'auto'
+
+Item = namedtuple('Item', 'item endpoint folder')
+
 
 @python_2_unicode_compatible
 class AddonDirectory(object):
     """
-    Thiny wrapper for plugin directory list.
+    Tiny wrapper for plugin directory list.
 
     Parameters
     ----------
@@ -306,33 +406,167 @@ class AddonDirectory(object):
         Current addon instance.
     view : str
         Directory view, see ...
+    sort : str or bool
+        Default list sort. See bellow.
     type : str
-        Contnent type (video, music, pictures, game). Default is directory default (video).
+        Content type (video, music, pictures, game). Default is directory default (video).
     image : str
         Link to image or relative path to addon image.
+    fanart : str
+        Link to fanart image or relative path to addon image.
     format : str
-        Safe f-string title format. Keywoard arguemts are `title` and `info` dict.
+        Safe f-string title format. Keyword arguments are `title` and `info` dict.
+
+    Sort
+    ----
+    None means default behavior. If add_sort() is used nothing happens. If no any sort
+    function is called it means "auto".
+
+    "auto" means auto sorting. All added items are scanned for detect witch info data
+    is available. Than corresponding sort method are added to directory, including "unsorted".
+
+    Empty string means "unsorted".
+
+    False means do not sort at all. Even seep any add_sort() calls.
+
+    True means... [I'm not sure yet ;-P]
+
+    Another str is spited by semicolon (;) to separate sort command.
+
+    Single sort command is Kodi case insensitive name (without "SORT_METHOD_"). Then "title" -> SORT_METHOD_TITLE.
+    After bar (|) `lebel2Mask` can be applied. 
+
+    Note. If sort=None and `label2` is used, than item info `code` is overwritten, and mask is forced to "%P".
+
+    ### Example
+
+    Three sort methods:
+    - SORT_METHOD_UNSORTED with "%Y, %D" mask
+    - SORT_METHOD_YEAR
+    - SORT_METHOD_DURATION
+    >>> sort='|%Y, %D; year; duration'
+
+    Single method with show genre (skin hide sort button):
+    >>> sort='|%G'
 
     See: xbmcgui.ListItem, xbmcplugin.addDirectoryItem, xbmcplugin.endOfDirectory.
     """
 
-    def __init__(self, addon=None, view=None, type='video', image=None, format=None):
+    def __init__(self, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
+        self.item_list = []
         self.view = view
         self.type = type
         self.image = image
+        self.fanart = fanart
         self.format = format
+        self._label2_used = False
+        self.sort_list = []
+        self._initial_sort = sort
+        if isinstance(sort, str):
+            sort = [s.strip() for s in sort.split(';')]
+        if sort is not None and not isinstance(sort, bool):
+            for s in sort:
+                self._add_sort(s)
 
     def end(self, success=True, cacheToDisc=False):
+        def add_sort_method(sortMethod, labelMask, label2Mask):
+            if K18:
+                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod, label2Mask=label2Mask)
+            else:
+                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
+                                         labelMask=labelMask, label2Mask=label2Mask)
+
+        # set view
         if self.view is not None:
             xbmcplugin.setContent(self.addon.handle, self.view)
+        # force label2
+        if self._initial_sort is None and not self.sort_list and self._label2_used:
+            self.sort_list = [Sort('', label2Mask='%P')]
+            for it in self.item_list:
+                if isinstance(it.item, ListItem):
+                    it.item.set_info('code', it.item.getLabel2())
+        # add all items
+        for it in self.item_list:
+            self._add(*it)
+        # add sort methods
+        if self._initial_sort is True:
+            pass  # I'm not sure – ignore at the moment
+        if self._initial_sort is False:
+            pass  # skip sorting at all
+        else:
+            if self._initial_sort is None and not self.sort_list:
+                if not self._label2_used:
+                    self.sort_list = [Sort('auto')]
+            for sort in self.sort_list:
+                if sort.method == '':
+                    method = xbmcplugin.SORT_METHOD_UNSORTED
+                    add_sort_method(sortMethod=method, labelMask=sort.labelMask, label2Mask=sort.label2Mask)
+                elif sort.method == 'auto':
+                    for method in self._find_auto_sort():
+                        add_sort_method(sortMethod=method, labelMask=sort.labelMask, label2Mask=sort.label2Mask)
+                else:
+                    add_sort_method(sortMethod=sort.method, labelMask=sort.labelMask, label2Mask=sort.label2Mask)
+        # close directory
         xbmcplugin.endOfDirectory(self.addon.handle, success, cacheToDisc)
 
+    def _find_auto_sort(self):
+        """Helper. Sort method auto generator."""
+        try:
+            SORT_METHOD_YEAR = xbmcplugin.SORT_METHOD_YEAR
+        except AttributeError:
+            SORT_METHOD_YEAR = xbmcplugin.SORT_METHOD_VIDEO_YEAR
+        yield xbmcplugin.SORT_METHOD_UNSORTED
+        for method, keys in {
+                # Kodi-sort-method:              (list-of-info-keys)
+                SORT_METHOD_YEAR:                ('year', 'aired'),
+                xbmcplugin.SORT_METHOD_DURATION: ('duration',),
+                xbmcplugin.SORT_METHOD_GENRE:    ('genre',),
+        }.items():
+            if any(it.item.get_info(key)
+                   for it in self.item_list if isinstance(it.item, ListItem)
+                   for key in keys):
+                yield method
+
+    def _add_sort(self, data):
+        """Helper. Add sort method, `data` is str, dict or tuple."""
+        if data == 'auto':                  # auto_sort()
+            self.add_sort(data)
+        elif isinstance(data, Sort):        # add_sort(Sort(...))
+            self.add_sort(data)
+        elif isinstance(data, int):         # add_sort(xbmcplugin.SORT_METHOD_method)
+            self.add_sort(data)
+        elif isinstance(data, str):         # add_sort("method") or add_sort("method|label2Mask")
+            self.add_sort(data)
+        elif isinstance(data, Mapping):     # add_sort(method=..., labelMask=..., label2Mask=...)
+            self.add_sort(**data)
+        elif isinstance(data, Sequence):    # add_sort(method, labelMask, label2Mask)
+            self.add_sort(*data)
+
+    def add_sort(self, method, labelMask=None, label2Mask=None):
+        """Add single sort method. See AddonDirectory `sort` description."""
+        if isinstance(method, Sort):
+            self.sort_list.append(method)
+        else:
+            if isinstance(method, str):
+                method, sep, mask = method.partition('|')
+                if label2Mask is None and sep:
+                    label2Mask = mask
+                if method in ('', 'auto'):
+                    # to process later
+                    self.sort_list.append(Sort(method, labelMask, label2Mask))
+                    return
+                elif method == 'year' and not hasattr(xbmcplugin, 'SORT_METHOD_YEAR'):
+                    method = 'video_year'
+                method = getattr(xbmcplugin, 'SORT_METHOD_%s' % method.replace(' ', '_').upper())
+            self.sort_list.append(Sort(method, labelMask, label2Mask))
+
+    # @trace
     def new(self, title, endpoint=None, folder=False, playable=False, descr=None, format=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
-            type=None, info=None, art=None, season=None, episode=None):
+            type=None, info=None, art=None, season=None, episode=None, label2=None):
         """
         Create new list item, can be added to current directory list.
 
@@ -374,13 +608,21 @@ class AddonDirectory(object):
             Labels info, see xmbcgui.ListItem.setInfo().
         art : dict[str, str]
             Links to art images, see xmbcgui.ListItem.setArt().
+        season : int
+            Season number or None if not a season nor an episode.
+        episode : int
+            Episode number or None if not an episode.
 
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
+        log.error('>>> ENTER...')
         title, url = self.addon.mkentry(title, endpoint)
         item = ListItem(title, url=url, folder=folder)
         if folder is True:
             item.setIsFolder(folder)
+        if label2 is not None:
+            item.setLabel2(label2)
+            self._label2_used = True
         # properties
         if properties is not None:
             item.setProperties(properties)
@@ -409,24 +651,17 @@ class AddonDirectory(object):
         item.setInfo(type, info or {})
         # art / images
         art = {} if art is None else dict(art)
-        if fanart is not None:
-            art['fanart'] = fanart
-        if thumb is not None:
-            art['thumb'] = fanart
-        if image is None:
-            image = self.image
-        if image is None:
-            image = getattr(self.addon, 'default_image', None)
-        if image is not None:
-            art.setdefault('thumb', image)
-            art.setdefault('poster', image)
-        landscape = art.get('landscape', image)
-        if landscape is not None:
-            art.setdefault('banner', landscape)
-        def_fanart = getattr(self.addon, 'fanart', None)
-        if def_fanart is not None:
-            art.setdefault('fanart', def_fanart)
-        art = {k: 'https:' + v if v and v.startswith('//') else v for k, v in art.items()}
+        setdefaultx(art, 'icon', image, self.image)
+        setdefaultx(art, 'fanart', fanart, self.fanart)
+        setdefaultx(art, 'thumb', thumb)
+        if not (set(art) - {'fanart', 'thumb'}):
+            # missing image, take defaults
+            for iname in ('icon', 'landscape', 'poster', 'banner', 'clearlogo', 'keyart'):
+                image = self.addon.media.image('default/%s' % iname)
+                if image is not None:
+                    art.setdefault(iname, image)
+            # setdefaultx(art, 'icon', addon_icon)
+        art = {k: 'https:' + v if isinstance(v, str) and v.startswith('//') else str(v) for k, v in art.items()}
         item.setArt(art)
         # serial
         if season is not None:
@@ -439,9 +674,15 @@ class AddonDirectory(object):
             format = self.format
         if format is not None:
             item.setLabel(safefmt(format, title=title, **info))
+        log.error('>>> EXIT...')
         return item
 
     def add(self, item, endpoint=None, folder=None):
+        self.item_list.append(Item(item, endpoint, folder))
+        return item
+
+    def _add(self, item, endpoint=None, folder=None):
+        """Helper. Add item to xbmcplugin directory."""
         ifolder = False
         if isinstance(item, ListItem):
             # our list item, revocer utl and folder flag
@@ -514,6 +755,14 @@ class AddonDirectory(object):
         For more arguments see AddonDirectory.new().
         """
         return self.item(title, endpoint, playable=True, **kwargs)
+
+    def parse(self, *args, **kwargs):
+        """
+        Custom parse. Call Addon.parse_list_item(kd, *args, **kwargs) if exists.
+        """
+        handler = getattr(self.addon, 'parse_list_item', None)
+        if handler is not None:
+            return handler(self, *args, **kwargs)
 
     # @contextmanager
     # def context_menu(self, safe=False, **kwargs):

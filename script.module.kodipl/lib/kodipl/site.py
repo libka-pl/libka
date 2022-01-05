@@ -10,8 +10,10 @@ import json as jsonlib
 from requests.exceptions import SSLError
 import urllib3  # already used by "requests"
 from urllib3.exceptions import MaxRetryError, SSLError as SSLError3
-# from json import JSONDecodeError
-from simplejson.errors import JSONDecodeError
+try:
+    from json import JSONDecodeError
+except ImportError:
+    from simplejson.errors import JSONDecodeError
 from certifi import where
 from collections.abc import Mapping
 from http.cookiejar import LWPCookieJar
@@ -141,7 +143,7 @@ class Site(object):
             resp = http.request(meth, url, headers=headers, body=data)
             resp = UL3Response(resp)
         else:
-            log('PLAYER.PL: req(%s, %r, params=%r, data=%r, json=%r, headers=%r, cookies=%r)' % (meth, url, params, data, json, headers, cookies))  # XXX
+            log('req(%s, %r, params=%r, data=%r, json=%r, headers=%r, cookies=%r)' % (meth, url, params, data, json, headers, cookies))  # XXX
             resp = self.sess.request(meth, url, params=params, data=data, json=json,
                                      headers=headers, cookies=cookies, verify=verify_ssl)
         return resp
@@ -181,7 +183,7 @@ class Site(object):
     def jpost(self, url, **kwargs):
         """POST request returns JSON. Keyword arguments line in _request()."""
         # return self.post(url, **kwargs).json()
-        log('PLAYER.PL: jpost(%r, %r)' % (url, kwargs))  # XXX
+        log('jpost(%r, %r)' % (url, kwargs))  # XXX
         resp = self.post(url, **kwargs)
         with open('/tmp/z', 'wb') as f:
             f.write(resp.content)

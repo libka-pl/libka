@@ -10,12 +10,12 @@ import ntpath
 import os
 import posixpath
 import re
-from typing import (
-    TypeVar, Type, Union, Text, Tuple, List, Any, Callable, Iterable, Optional
-)
+# from typing import (
+#     TypeVar, Type, Union, Text, Tuple, List, Any, Callable, Iterable, Optional
+# )
 
-import six
 import sys
+from future.utils import PY2, text_type, binary_type
 
 from errno import EINVAL, ENOENT, ENOTDIR, EBADF
 from errno import EEXIST, EPERM, EACCES
@@ -23,12 +23,13 @@ from operator import attrgetter
 from stat import (
     S_ISDIR, S_ISLNK, S_ISREG, S_ISSOCK, S_ISBLK, S_ISCHR, S_ISFIFO)
 
-from six.moves.collections_abc import Sequence
 
-if six.PY2:
+if PY2:
+    from collections import Sequence
     import urllib
     urlquote_from_bytes = urllib.quote  # type: Callable[[bytes], str]
 else:
+    from collections.abc import Sequence
     import urllib.parse
     urlquote_from_bytes = urllib.parse.quote_from_bytes
 
@@ -81,7 +82,7 @@ def _ignore_error(exception):
 
 def _py2_fsencode(part):
     # type: (Text) -> str
-    if six.PY2 and isinstance(part, six.text_type):
+    if PY2 and isinstance(part, text_type):
         # py2 => minimal unicode support
         # note: in rare circumstances, on Python < 3.2,
         # getfilesystemencoding can return None, in that
@@ -155,7 +156,7 @@ def _try_except_filenotfounderror(
                 except_func(exc)
 
 
-_T = TypeVar("_T")
+# _T = TypeVar("_T")
 
 
 def _try_except_permissionerror_iter(
@@ -892,7 +893,7 @@ class _PathParents(Sequence):
         return "<{0}.parents>".format(self._pathcls.__name__)
 
 
-_P = TypeVar("_P", bound="PurePath")
+# _P = TypeVar("_P", bound="PurePath")
 
 
 class PurePath(object):
@@ -955,8 +956,8 @@ class PurePath(object):
                 if isinstance(a, str):
                     # Force-cast str subclasses to str (issue #21127)
                     parts.append(str(a))
-                # also handle unicode for PY2 (six.text_type = unicode)
-                elif six.PY2 and isinstance(a, six.text_type):
+                # also handle unicode for PY2 (text_type = unicode)
+                elif PY2 and isinstance(a, text_type):
                     # cast to str using filesystem encoding
                     parts.append(_py2_fsencode(a))
                 else:
@@ -1242,7 +1243,7 @@ class PurePath(object):
     def __rtruediv__(self, key):
         return self._from_parts([key] + self._parts)
 
-    if six.PY2:
+    if PY2:
         __div__ = __truediv__
         __rdiv__ = __rtruediv__
 
@@ -1416,8 +1417,8 @@ class Path(PurePath):
                 other_st = os.stat(other_path)
             return os.path.samestat(st, other_st)
         else:
-            filename1 = six.text_type(self)
-            filename2 = six.text_type(other_path)
+            filename1 = text_type(self)
+            filename2 = text_type(other_path)
             st1 = _win32_get_unique_path_id(filename1)
             st2 = _win32_get_unique_path_id(filename2)
             return st1 == st2
@@ -1567,10 +1568,10 @@ class Path(PurePath):
         """
         Open the file in bytes mode, write to it, and close the file.
         """
-        if not isinstance(data, six.binary_type):
+        if not isinstance(data, binary_type):
             raise TypeError(
                 'data must be %s, not %s' %
-                (six.binary_type.__name__, data.__class__.__name__))
+                (binary_type.__name__, data.__class__.__name__))
         with self.open(mode='wb') as f:
             return f.write(data)
 
@@ -1578,10 +1579,10 @@ class Path(PurePath):
         """
         Open the file in text mode, write to it, and close the file.
         """
-        if not isinstance(data, six.text_type):
+        if not isinstance(data, text_type):
             raise TypeError(
                 'data must be %s, not %s' %
-                (six.text_type.__name__, data.__class__.__name__))
+                (text_type.__name__, data.__class__.__name__))
         with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
             return f.write(data)
 

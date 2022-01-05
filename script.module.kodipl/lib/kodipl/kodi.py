@@ -21,7 +21,7 @@ def get_kodi_version_info():
         default = '19'
     ver = xbmc.getInfoLabel('System.BuildVersion') or default
     ver = ver.partition(' ')[0].split('.', 3)[:3]
-    return version_info_type(*(map(int, ver)))
+    return version_info_type(*(int(v.partition('-')[0]) for v in ver))
 
 
 version_info = get_kodi_version_info()

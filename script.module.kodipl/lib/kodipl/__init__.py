@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, division, unicode_literals, print_function
+
 import sys
 import os.path
 
@@ -17,3 +20,18 @@ standard_library.install_aliases()
 if sys.version_info < (3, 0):
     import collections
     sys.modules['collections.abc'] = collections
+
+
+from .addon import Addon, Plugin
+from .site import Site
+
+
+class SimpleAddon(Site, Plugin):
+    pass
+
+
+class SimplePlugin(Site, Plugin):
+    pass
+
+
+__all__ = ['Addon', 'Plugin', 'SimpleAddon', 'SimplePlugin', 'Site']
