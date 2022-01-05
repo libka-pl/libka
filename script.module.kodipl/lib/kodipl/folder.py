@@ -4,6 +4,7 @@ from future.utils import PY2, python_2_unicode_compatible
 if PY2:
     from builtins import *  # dirty hack, force py2 to be like py3
 
+import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from kodipl.utils import setdefaultx
@@ -13,6 +14,35 @@ from kodipl.logs import log
 from kodipl.kodi import K18
 from kodi_six import xbmcgui
 from kodi_six import xbmcplugin
+
+
+@python_2_unicode_compatible
+class Cmp(object):
+    """Helper. Object to compare values without TypeError exception."""
+
+    __slots__ = ('value', )
+
+    def __init__(self, value=None):
+        self.value = value
+
+    # The sort routines are guaranteed to use __lt__() when making comparisons between two objects.
+    def __lt__(self, other):
+        """True if self is less-then other."""
+        if not self.value:
+            return bool(other.value)  # '' < '' or '' < '...'
+        if not other.value:
+            return False  # '...' < ''
+        try:
+            return self.value < other.value
+        except TypeError:
+            return str(self.value) < str(other.value)
+
+    # def __eq__(self, other):
+    #     if not self.value and not other.value:
+    #         return True
+    #     if self.value and other.value:
+    #         return str(self.value) == str(other.value)
+    #     return False
 
 
 @python_2_unicode_compatible
@@ -161,10 +191,20 @@ class AddonDirectory(object):
     Single method with show genre (skin hide sort button):
     >>> sort='|%G'
 
+
+    ### Internal sort
+
+    To sort data *before* add to Kodi Directory, `isort` can be used. It should contains
+    info key or sequence of info key (tuple, list or string separated by comma).
+    If minus (-) is a first character of a key, there reverse order will be used.
+
     See: xbmcgui.ListItem, xbmcplugin.addDirectoryItem, xbmcplugin.endOfDirectory.
     """
 
-    def __init__(self, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None):
+    _RE_ISORT_SPLIT = re.compile(r'[,;]')
+
+    def __init__(self, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None,
+                 isort=None):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
@@ -182,6 +222,12 @@ class AddonDirectory(object):
         if sort is not None and not isinstance(sort, bool):
             for s in sort:
                 self._add_sort(s)
+        if isinstance(isort, str):
+            self.isort = [s.strip() for s in self._RE_ISORT_SPLIT.split(isort)]
+        elif isinstance(isort, Sequence):
+            self.isort = list(isort)
+        else:
+            self.isort = []
 
     def end(self, success=True, cacheToDisc=False):
         def add_sort_method(sortMethod, labelMask, label2Mask):
@@ -200,6 +246,20 @@ class AddonDirectory(object):
             for it in self.item_list:
                 if isinstance(it.item, ListItem):
                     it.item.set_info('code', it.item.getLabel2())
+        # internal sort
+        if self.isort:
+            log(f'>>> ISORT 1: {", ".join(i.item.get_info("title") for i in self.item_list)}')
+            for srt in reversed(self.isort):
+                reverse = False
+                if srt.startswith('-'):
+                    srt = srt[1:]
+                    reverse = True
+                elif srt.startswith('+'):
+                    srt = srt[1:]
+                self.item_list.sort(key=lambda it: Cmp(it.item.get_info(srt)) if isinstance(it.item, ListItem) else Cmp(),
+                                    reverse=reverse)
+                log(f'>>> ISORT 2 / {srt!r}: {", ".join(i.item.get_info("title") for i in self.item_list)}')
+            log(f'>>> ISORT 3: {", ".join(sorted(i.item.get_info("title") for i in self.item_list))}')
         # add all items
         for it in self.item_list:
             self._add(*it)
@@ -233,6 +293,7 @@ class AddonDirectory(object):
         yield xbmcplugin.SORT_METHOD_UNSORTED
         for method, keys in {
                 # Kodi-sort-method:              (list-of-info-keys)
+                xbmcplugin.SORT_METHOD_TITLE:    ('title',),
                 SORT_METHOD_YEAR:                ('year', 'aired'),
                 xbmcplugin.SORT_METHOD_DURATION: ('duration',),
                 xbmcplugin.SORT_METHOD_GENRE:    ('genre',),
