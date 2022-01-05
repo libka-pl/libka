@@ -2,7 +2,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function
 from future.utils import PY2
 if PY2:
-    from builtins import *  # dirty hack
+    from builtins import *  # dirty hack, force py2 to be like py3
 from future.utils import python_2_unicode_compatible
 
 from pathlib import Path
