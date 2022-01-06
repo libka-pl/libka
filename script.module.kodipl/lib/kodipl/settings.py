@@ -8,6 +8,8 @@ from future.utils import python_2_unicode_compatible, text_type, binary_type
 from collections import namedtuple
 # from kodi_six import xbmcplugin
 
+from .logs import flog  # DEBUG,  TODO: remove it
+
 
 Call = namedtuple('Call', 'method args')
 
@@ -50,6 +52,27 @@ class Settings(object):
         return 'Settings()'
         # return 'Settings(Addon(%r))' % self._addon.id
 
+    def _get(self, key, default=None, type='string'):
+        """Get setting."""
+        try:
+            return self._data[key]
+        except KeyError:
+            pass
+        if self._xbmc is None:
+            # till K19 (inclusive)
+            type = type.capitalize()
+            if type == 'String' or type.endswith('List'):
+                type = ''
+            getter = getattr(self._addon.xbmc_addon, 'getSetting{}'.format(type))
+        else:
+            # since K20
+            type = type.capitalize()
+            getter = getattr(self._xbmc, 'get{}'.format(type))
+        flog('_get({key!r}, {default!r}, {type!r}): getter={getter!r}')
+        value = getter(key)
+        self._data[key] = value
+        return value
+
     def get(self, key, default=None):
         """Get setting."""
         try:
@@ -63,7 +86,6 @@ class Settings(object):
 
     def set(self, key, value):
         """Set setting. Convert to string."""
-        from kodipl.logs import flog
         flog('Settings.set({key!r}, {value!r})...')
         if value is None:
             value = ''
@@ -95,16 +117,25 @@ class Settings(object):
         return value
 
     def get_bool(self, key, default=None):
-        return self.get(key, default=default).lower() == 'true'
+        return self.get(key, default).lower() == 'true'
 
     def set_bool(self, key, value):
         return self.set(key, bool(value))
 
     def get_int(self, key, default=None):
-        return int(self.get(key, default=default))
+        value = self.get(key, default)
+        if value == '':
+            value = default
+        return int(value)
 
     def set_int(self, key, value):
         return self.set(key, int(value))
+
+    def get_float(self, key, default=None):
+        return float(self.get(key, default))
+
+    def set_float(self, key, value):
+        return self.set(key, float(value))
 
     def __call__(self):
         """Call opens a settings dialog."""

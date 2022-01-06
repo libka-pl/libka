@@ -256,11 +256,11 @@ class Addon(object):
         try:
             yield kd
         except Exception:
-            kd.end(False)
+            kd.close(False)
             if not safe:
                 raise
         else:
-            kd.end(True)
+            kd.close(True)
         finally:
             pass
 

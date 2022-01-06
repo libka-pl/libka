@@ -60,6 +60,7 @@ class ListItem(object):
         self._kodipl_folder = folder
         self.type = type
         self._info = {}
+        self._props = {}
         self._kodipl_item.setInfo(self.type, self._info)
 
     def __repr__(self):
@@ -128,6 +129,20 @@ class ListItem(object):
     def title(self, title):
         self._info['title'] = title
         self._kodipl_item.setInfo(self.type, self._info)
+
+    def setProperties(self, values):
+        """See Kodi ListItem.setProperties()."""
+        self._props.update(values)
+        self._kodipl_item.setProperties(values)
+
+    def setProperty(self, key, value):
+        """See Kodi ListItem.setProperty()."""
+        self._props[key] = value
+        self._kodipl_item.setProperty(key, value)
+
+    def get_property(self, key):
+        """Get set property."""
+        return self._props.get(key)
 
 
 Sort = namedtuple('Sort', 'method labelMask label2Mask')
@@ -204,7 +219,7 @@ class AddonDirectory(object):
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
     def __init__(self, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None,
-                 isort=None):
+                 isort=None, cache=False):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
@@ -228,8 +243,12 @@ class AddonDirectory(object):
             self.isort = list(isort)
         else:
             self.isort = []
+        self.cache = cache
+        handler = getattr(self.addon, 'on_directory_enter', None)
+        if handler is not None:
+            handler(self)
 
-    def end(self, success=True, cacheToDisc=False):
+    def close(self, success=True):
         def add_sort_method(sortMethod, labelMask, label2Mask):
             if K18:
                 xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod, label2Mask=label2Mask)
@@ -237,6 +256,10 @@ class AddonDirectory(object):
                 xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
                                          labelMask=labelMask, label2Mask=label2Mask)
 
+        # custom exiting
+        handler = getattr(self.addon, 'on_directory_exit', None)
+        if handler is not None:
+            handler(self)
         # set view
         if self.view is not None:
             xbmcplugin.setContent(self.addon.handle, self.view)
@@ -248,7 +271,6 @@ class AddonDirectory(object):
                     it.item.set_info('code', it.item.getLabel2())
         # internal sort
         if self.isort:
-            log(f'>>> ISORT 1: {", ".join(i.item.get_info("title") for i in self.item_list)}')
             for srt in reversed(self.isort):
                 reverse = False
                 if srt.startswith('-'):
@@ -256,10 +278,15 @@ class AddonDirectory(object):
                     reverse = True
                 elif srt.startswith('+'):
                     srt = srt[1:]
-                self.item_list.sort(key=lambda it: Cmp(it.item.get_info(srt)) if isinstance(it.item, ListItem) else Cmp(),
+                self.item_list.sort(key=lambda it: (Cmp(it.item.get_info(srt))
+                                                    if isinstance(it.item, ListItem)
+                                                    else Cmp()),
                                     reverse=reverse)
-                log(f'>>> ISORT 2 / {srt!r}: {", ".join(i.item.get_info("title") for i in self.item_list)}')
-            log(f'>>> ISORT 3: {", ".join(sorted(i.item.get_info("title") for i in self.item_list))}')
+        # ... always respect "SpecialSort" property, even wth SORT_METHOD_UNSORTED
+        spec_sort = {'top': -1, 'bottom': 1}
+        self.item_list.sort(key=lambda it: spec_sort.get(((it.item.get_property
+                                                          if isinstance(it.item, ListItem)
+                                                          else it.item.getProperty)('SpecialSort') or '').lower(), 0))
         # add all items
         for it in self.item_list:
             self._add(*it)
@@ -282,7 +309,10 @@ class AddonDirectory(object):
                 else:
                     add_sort_method(sortMethod=sort.method, labelMask=sort.labelMask, label2Mask=sort.label2Mask)
         # close directory
-        xbmcplugin.endOfDirectory(self.addon.handle, success, cacheToDisc)
+        handler = getattr(self.addon, 'on_directory_close', None)
+        if handler is not None:
+            handler(self)
+        xbmcplugin.endOfDirectory(self.addon.handle, success, self.cache)
 
     def _find_auto_sort(self):
         """Helper. Sort method auto generator."""
@@ -451,7 +481,8 @@ class AddonDirectory(object):
         return item
 
     def add(self, item, endpoint=None, folder=None):
-        self.item_list.append(Item(item, endpoint, folder))
+        if item is not None:
+            self.item_list.append(Item(item, endpoint, folder))
         return item
 
     def _add(self, item, endpoint=None, folder=None):
@@ -536,6 +567,12 @@ class AddonDirectory(object):
         handler = getattr(self.addon, 'parse_list_item', None)
         if handler is not None:
             return handler(self, *args, **kwargs)
+
+    def item_count(self):
+        """
+        Returns number of items on the list.
+        """
+        return len(self.item_list)
 
     # @contextmanager
     # def context_menu(self, safe=False, **kwargs):
