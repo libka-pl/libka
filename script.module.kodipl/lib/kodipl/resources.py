@@ -5,8 +5,8 @@ if PY2:
     from builtins import *  # dirty hack, force py2 to be like py3
 from future.utils import python_2_unicode_compatible
 
-from pathlib import Path
-from kodi_six import xbmcvfs
+from kodipl.path import Path
+from kodipl.kodi import xbmcvfs
 
 
 @python_2_unicode_compatible
