@@ -24,6 +24,7 @@ if sys.version_info < (3, 0):
 
 from .addon import Addon, Plugin
 from .site import Site
+from .kodi import K18, K19, K20
 
 
 class SimpleAddon(Site, Plugin):
@@ -34,4 +35,4 @@ class SimplePlugin(Site, Plugin):
     pass
 
 
-__all__ = ['Addon', 'Plugin', 'SimpleAddon', 'SimplePlugin', 'Site']
+__all__ = ['Addon', 'K18', 'K19', 'K20', 'Plugin', 'SimpleAddon', 'SimplePlugin', 'Site']

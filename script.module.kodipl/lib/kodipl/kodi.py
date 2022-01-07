@@ -6,6 +6,14 @@ if PY2:
 
 from collections import namedtuple
 from kodi_six import xbmc
+from kodi_six import xbmcvfs
+# traversal modules
+from kodi_six import (
+    xbmcaddon,
+    xbmcdrm,
+    xbmcgui,
+    xbmcplugin,
+)
 
 
 version_info_type = namedtuple('version_info_type', 'major micro minor')
@@ -31,3 +39,29 @@ version = version_info.major
 K18 = (version == 18)
 K19 = (version == 19)
 K20 = (version == 20)
+
+
+# Added missing context manager support in K18.
+# It's in Kodi since K19.
+if not hasattr(xbmcvfs.File, '__enter__'):
+
+    class File(xbmcvfs.File):
+        __doc__ = xbmcvfs.File.__doc__
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.close()
+
+    xbmcvfs.File = File
+
+
+if not hasattr(xbmcvfs, 'translatePath'):
+    xbmcvfs.translatePath = xbmc.translatePath
+
+if not hasattr(xbmcvfs, 'validatePath'):
+    xbmcvfs.validatePath = xbmc.validatePath
+
+if not hasattr(xbmcvfs, 'makeLegalFilename'):
+    xbmcvfs.makeLegalFilename = xbmc.makeLegalFilename

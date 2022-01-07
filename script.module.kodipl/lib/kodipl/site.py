@@ -13,7 +13,10 @@ from urllib3.exceptions import MaxRetryError, SSLError as SSLError3
 try:
     from json import JSONDecodeError
 except ImportError:
-    from simplejson.errors import JSONDecodeError
+    try:
+        from simplejson.errors import JSONDecodeError
+    except ImportError:
+        JSONDecodeError = ValueError
 from certifi import where
 from collections.abc import Mapping
 from http.cookiejar import LWPCookieJar
