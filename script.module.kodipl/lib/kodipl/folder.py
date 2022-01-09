@@ -264,11 +264,14 @@ class AddonDirectory(object):
         if self.view is not None:
             xbmcplugin.setContent(self.addon.handle, self.view)
         # force label2
-        if self._initial_sort is None and not self.sort_list and self._label2_used:
-            self.sort_list = [Sort('', label2Mask='%P')]
-            for it in self.item_list:
-                if isinstance(it.item, ListItem):
-                    it.item.set_info('code', it.item.getLabel2())
+        if self._initial_sort is None and not self.sort_list:
+            if self._label2_used:
+                self.sort_list = [Sort('', label2Mask='%P')]
+                for it in self.item_list:
+                    if isinstance(it.item, ListItem):
+                        it.item.set_info('code', it.item.getLabel2())
+            else:
+                self.sort_list = [Sort('')]
         # internal sort
         if self.isort:
             for srt in reversed(self.isort):
@@ -320,7 +323,8 @@ class AddonDirectory(object):
             SORT_METHOD_YEAR = xbmcplugin.SORT_METHOD_YEAR
         except AttributeError:
             SORT_METHOD_YEAR = xbmcplugin.SORT_METHOD_VIDEO_YEAR
-        yield xbmcplugin.SORT_METHOD_UNSORTED
+        # "auto" should not generate SORT_METHOD_UNSORTED, it is easy to get directly.
+        # yield xbmcplugin.SORT_METHOD_UNSORTED
         for method, keys in {
                 # Kodi-sort-method:              (list-of-info-keys)
                 xbmcplugin.SORT_METHOD_TITLE:    ('title',),
@@ -418,7 +422,7 @@ class AddonDirectory(object):
 
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
-        log.error('>>> ENTER...')
+        # log.error('>>> ENTER...')  # DEBUG
         title, url = self.addon.mkentry(title, endpoint)
         item = ListItem(title, url=url, folder=folder)
         if folder is True:
@@ -477,7 +481,7 @@ class AddonDirectory(object):
             format = self.format
         if format is not None:
             item.setLabel(safefmt(format, title=title, **info))
-        log.error('>>> EXIT...')
+        # log.error('>>> EXIT...')  # DEBUG
         return item
 
     def add(self, item, endpoint=None, folder=None):

@@ -113,7 +113,8 @@ class Addon(object):
         # Addon ID (unique name)
         self.id = self.req.url.host
         # XMBC (Kodi) Addon
-        self.xbmc_addon = XbmcAddon(id=self.id)
+        # self.xbmc_addon = XbmcAddon(id=self.id)
+        self.xbmc_addon = XbmcAddon()
         #: Addon settings.
         self.settings = Settings(self)
         #: Defined routes.
@@ -137,7 +138,7 @@ class Addon(object):
 
     def mkentry(self, title, endpoint=None):
         """Helper. Returns (title, url) for given endpoint."""
-        flog('mkentry({title!r}, {endpoint!r})')
+        # flog('mkentry({title!r}, {endpoint!r})')  # DEBUG
         if endpoint is None:
             if isinstance(title, str):
                 # folder(title, endpoint=title)
