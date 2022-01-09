@@ -6,9 +6,8 @@ if PY2:
 from future.utils import python_2_unicode_compatible
 
 r"""
-Some sstring and format tools.
+Some string and format tools.
 """
-# COPY od transys.toold.format and some other private code
 
 import re
 import string
@@ -18,6 +17,7 @@ try:
 # except ModuleNotFoundError:
 except ImportError:
     simple_eval = None
+from kodipl.iter import neighbor_iter
 
 
 #: Regex type
@@ -27,7 +27,7 @@ regex = type(re.compile(''))
 #: RegEx for UUID
 re_uuid = re.compile(r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}')
 
-
+#: RegEx for quote: ', ", ''', """
 re_quote = re.compile(r'''(?:"""(?:\\.|.)*?""")|(?:"(?:\\.|.)*?")'''
                       r"""|(?:'''(?:\\.|.)*?''')|(?:'(?:\\.|.)*?')""")
 
@@ -110,9 +110,10 @@ class SafeFormatter(string.Formatter):
         '\000': '\\000',
     }
 
-    # def __init__(self, *, evaluate=True, escape=True, extended=False, names=None, functions=None):
-    def __init__(self, evaluate=True, escape=True, extended=False, names=None, functions=None):
+    # def __init__(self, *, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None):
+    def __init__(self, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None):
         super().__init__()
+        self.safe = safe
         self.evaluator = None
         self.evaluator_class = None
         if isclass(evaluate):
@@ -142,6 +143,14 @@ class SafeFormatter(string.Formatter):
                 names = kwargs
             self.evaluator = self.evaluator_class(names=names, functions=self.evaluator_functions)
         return super().vformat(format_string, args, kwargs)
+
+    def get_value(self, key, args, kwargs):
+        try:
+            return super().get_value(key, args, kwargs)
+        except IndexError:
+            if self.safe:
+                return '{%r}' % key
+            raise
 
     def convert_field(self, value, conversion):
         if self.escape and conversion == 'e':
@@ -183,10 +192,14 @@ class SafeFormatter(string.Formatter):
                 # format_spec = format_spec[:-1] + 's'
                 format_spec = 's'
                 value = val
+        elif unknown and not self.safe:
+            raise KeyError(value)
         try:
             return super().format_field(value, format_spec)
-        except Exception as exc:
-            return '{%r:%r}' % (value, input_spec)
+        except Exception:
+            if self.safe:
+                return '{%r:%r}' % (value, input_spec)
+            raise
 
 
 def safefmt(fmt, *args, **kwargs):
@@ -211,11 +224,70 @@ def vfstr(fmt, args, kwargs, depth=1):
 
 
 def fstr(*args, **kwargs):
-    """fstr(format) is f-string format like. Uses locals and globlas. Useful in Py2."""
+    """fstr(format) is f-string format like. Uses locals and globlallas. Useful in Py2."""
     if not args:
         raise TypeError('missing format in fstr(format, *args, **kwargs)')
     fmt, args = args[0], args[1:]
     return vfstr(fmt, args, kwargs)
+
+
+def _build_re_sectfmt_split(depth=3):
+    f = r'(?<!\{)\{(?!\{)[^}]*\}'
+    x = r'\\.|%[][%\\]_|{}|[^]]'.format(f)
+    z = x = r'(?<![\\%%])\[(?:%s)*\]' % x
+    for _ in range(depth):
+        z = z.replace('_', '|' + x, 1)
+    return re.compile('({}|{})'.format(z.replace('_', ''), f))
+
+
+#: RegEx for split in sectfmt()
+re_sectfmt_split = _build_re_sectfmt_split()
+#: RegEx for escape in sectfmt()
+re_sectfmt_text = re.compile(r'[%\\]([][%\\])')
+
+
+def _vsectfmt(fmt, args, kwargs, formatter=None):
+    """Realise Format in sections. See: sectfmt()."""
+    def join(seq):
+        text = ''
+        for i, s in enumerate(seq):
+            if i % 2:
+                if s[0] == '[':
+                    yield False, text
+                    yield True, s[1:-1]
+                    text = ''
+                else:
+                    text += s
+            else:
+                text += s
+        yield False, text
+
+    if formatter is None:
+        formatter = SafeFormatter(safe=False)
+    try:
+        parts = (_vsectfmt(text, args, kwargs, formatter=formatter) if sect
+                 else formatter.vformat(re_sectfmt_text.sub(r'\1', text), args, kwargs)
+                 for sect, text in join(re_sectfmt_split.split(fmt)))
+        parts = (ss[1] for ss in neighbor_iter(parts, False) if all(s is not None for s in ss))
+        return ''.join(parts)
+    except (KeyError, AttributeError):
+        return None
+
+
+def sectfmt(fmt, *args, **kwargs):
+    """
+    Format in sections. If anything is wrong in section, whole section and adjacent text disappear.
+
+    Example:
+    >>> sectfmt('[a={a}], [b={b}][: ][c={c}], [{a}/{c}]', a=42)
+    'a=42: '
+
+
+    Sections are defined inside `[...]`.
+    Use `%[`, `%]` and `%%` to get `[`, ']' and '%'. Instead of `%` backslash can be uesd.
+    """
+    formatter = SafeFormatter(safe=False)
+    return _vsectfmt(fmt, args, kwargs, formatter=formatter) or ''
 
 
 if __name__ == '__main__':
@@ -224,7 +296,16 @@ if __name__ == '__main__':
 
     def foo(a):
         b = 2
-        print(fstr('{a} + {b} = {a+b}, {x} / {y}, {SafeFormatter.parse}, {random.randint(5, 9)}, {0}', 11, y=9))
+        print(fstr('{a} + {b} = {a+b}, {x} / {y}, {SafeFormatter.parse}, {random.randint(5, 9)}, {0} | {9}', 11, y=9))
 
     x = 8
     foo(1)
+
+    print(sectfmt(r'\[-\] [a={a}], [b={b}][: ][c={c}], [{a}/{c}]; [-\[\]]-].', a=42))
+    # SafeFormatter(safe=False).vformat('{a}', (), {})
+
+    series = {'title': 'Serial'}
+    info = {'season': 2, 'episode': 3}
+    data = {'title': 'Go to...'}
+    fmt = '[{series[title]} – ][S{info[season]:02d}][E{info[episode]:02d}][: {title}]'
+    print(sectfmt(fmt, series=series, info=info, **data))
