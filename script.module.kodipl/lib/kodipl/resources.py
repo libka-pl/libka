@@ -1,15 +1,7 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-from future.utils import python_2_unicode_compatible
-
 from kodipl.path import Path
-from kodipl.kodi import xbmcvfs
+import xbmcvfs
 
 
-@python_2_unicode_compatible
 class Resources(object):
     """
     Access do Addon resources.
@@ -53,7 +45,6 @@ class Resources(object):
             return exists
 
 
-@python_2_unicode_compatible
 class Media(object):
     """
     Access do Addon resources media.

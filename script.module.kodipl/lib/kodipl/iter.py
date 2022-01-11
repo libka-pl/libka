@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-
 from itertools import tee, zip_longest
 
 

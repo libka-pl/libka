@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-from future.utils import python_2_unicode_compatible
-
 r"""
 Some string and format tools.
 """
@@ -86,7 +79,6 @@ def fparser(s):
         yield vec
 
 
-@python_2_unicode_compatible
 class SafeFormatter(string.Formatter):
     r"""
     Safe string formatter.
@@ -110,8 +102,8 @@ class SafeFormatter(string.Formatter):
         '\000': '\\000',
     }
 
-    # def __init__(self, *, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None):
-    def __init__(self, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None):
+    def __init__(self, *, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None,
+                 raise_empty=False):
         super().__init__()
         self.safe = safe
         self.evaluator = None
@@ -127,6 +119,7 @@ class SafeFormatter(string.Formatter):
         self.evaluator_functions = functions
         self.escape = escape
         self.extended = extended
+        self.raise_empty = raise_empty
 
     def parse(self, format_string):
         if self.extended:
@@ -146,11 +139,14 @@ class SafeFormatter(string.Formatter):
 
     def get_value(self, key, args, kwargs):
         try:
-            return super().get_value(key, args, kwargs)
+            value = super().get_value(key, args, kwargs)
         except IndexError:
-            if self.safe:
-                return '{%r}' % key
-            raise
+            if not self.safe:
+                raise
+            value = '{%r}' % key
+        if self.raise_empty and not value:
+            raise ValueError(f'{key!r} is not empty')
+        return value
 
     def convert_field(self, value, conversion):
         if self.escape and conversion == 'e':
@@ -246,7 +242,7 @@ re_sectfmt_split = _build_re_sectfmt_split()
 re_sectfmt_text = re.compile(r'[%\\]([][%\\])')
 
 
-def _vsectfmt(fmt, args, kwargs, formatter=None):
+def _vsectfmt(fmt, args, kwargs, *, formatter=None):
     """Realise Format in sections. See: sectfmt()."""
     def join(seq):
         text = ''
@@ -270,8 +266,22 @@ def _vsectfmt(fmt, args, kwargs, formatter=None):
                  for sect, text in join(re_sectfmt_split.split(fmt)))
         parts = (ss[1] for ss in neighbor_iter(parts, False) if all(s is not None for s in ss))
         return ''.join(parts)
-    except (KeyError, AttributeError):
+    except (KeyError, AttributeError, ValueError):
         return None
+
+
+def vsectfmt(fmt, args, kwargs, *, allow_empty=False):
+    """
+    Realize format in sections. See sectfmt()
+
+    Extra argument:
+    allow_empty : bool
+        If true, allow use section in value is empty string.
+        If false (defualt), remove section if any value is empty
+        If value doesn't exist section is removed always.
+    """
+    formatter = SafeFormatter(safe=False, raise_empty=not allow_empty)
+    return _vsectfmt(fmt, args, kwargs, formatter=formatter) or ''
 
 
 def sectfmt(fmt, *args, **kwargs):
@@ -286,8 +296,7 @@ def sectfmt(fmt, *args, **kwargs):
     Sections are defined inside `[...]`.
     Use `%[`, `%]` and `%%` to get `[`, ']' and '%'. Instead of `%` backslash can be uesd.
     """
-    formatter = SafeFormatter(safe=False)
-    return _vsectfmt(fmt, args, kwargs, formatter=formatter) or ''
+    return vsectfmt(fmt, args, kwargs, allow_empty=False)
 
 
 if __name__ == '__main__':
@@ -309,3 +318,4 @@ if __name__ == '__main__':
     data = {'title': 'Go to...'}
     fmt = '[{series[title]} – ][S{info[season]:02d}][E{info[episode]:02d}][: {title}]'
     print(sectfmt(fmt, series=series, info=info, **data))
+    print(sectfmt(fmt, series=series, info=info, title=''))

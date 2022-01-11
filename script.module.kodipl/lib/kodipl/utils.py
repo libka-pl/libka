@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-from future.utils import python_2_unicode_compatible, text_type, binary_type
-
 """
 KodiPL set of utils.
 
@@ -18,10 +11,9 @@ from base64 import b64encode, b64decode
 from urllib.parse import quote_plus
 from urllib.parse import parse_qsl
 from collections.abc import Mapping
-from kodipl.py2n3 import gzip
+import gzip
 
 
-@python_2_unicode_compatible
 class adict(dict):
     """
     Simple dict with attribute access.
@@ -163,10 +155,8 @@ def encode_params(params=None, raw=None):
     All data from `raw` are picked (+gzip +b64).
     """
     def quote_str_plus(s):
-        if not isinstance(s, text_type):
-            s = text_type(s)
-        if PY2 and not isinstance(s, binary_type):
-            s = s.encode('utf-8')
+        if not isinstance(s, str):
+            s = str(s)
         return quote_plus(s)
 
     params = item_iter(params)

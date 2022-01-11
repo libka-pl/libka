@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2, python_2_unicode_compatible
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-
 import sys
 import functools
 from inspect import currentframe
@@ -20,7 +14,6 @@ TRACE_CALL = 1
 TRACE_ALL = 2
 
 
-@python_2_unicode_compatible
 class TraceLogger(object):
     """
     Trace logger.

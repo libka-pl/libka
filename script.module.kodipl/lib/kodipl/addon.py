@@ -1,27 +1,18 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2, python_2_unicode_compatible
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
 import sys
 import re
 from contextlib import contextmanager
 from collections import namedtuple
 from collections.abc import Sequence
-# from functools import wraps
 from inspect import ismethod
-# from future.utils import text_type, binary_type
-from kodipl.py2n3 import inspect  # monkey-patching
 from inspect import getfullargspec
-from kodipl.py2n3 import get_method_self
 from kodipl.utils import parse_url, encode_url
 from kodipl.utils import get_attr
 from kodipl.settings import Settings
 from kodipl.logs import flog
 from kodipl.resources import Resources
 from kodipl.folder import AddonDirectory
-from kodi_six import xbmc
-from kodi_six.xbmcaddon import Addon as XbmcAddon
+import xbmc
+from xbmcaddon import Addon as XbmcAddon
 
 
 #: Call descrtiption
@@ -51,7 +42,7 @@ def entry(method=None, path=None, title=None):
 
         if path is not None:
             if ismethod(method):
-                obj = get_method_self(method)
+                obj = method.__self__
                 obj._routes.append(Route(method, entry))
         method._kodipl_endpoint = entry
         method.call = make_call
@@ -72,7 +63,6 @@ def raw_call(method, *args, **kwargs):
     return Call(method, (), args, kwargs)
 
 
-@python_2_unicode_compatible
 class Request(object):
     """
     Addon call request.
@@ -86,7 +76,6 @@ class Request(object):
         # flog('XXXXX: req={self.url}, link={self.url.link!r}, params={self.params!r}')
 
 
-@python_2_unicode_compatible
 class Addon(object):
     """
     Abstract KodiPL Addon.
@@ -150,7 +139,7 @@ class Addon(object):
         if isinstance(endpoint, Call):
             endpoint, params = endpoint.method, endpoint.params
         if ismethod(endpoint):
-            obj = get_method_self(endpoint)
+            obj = endpoint.__self__
             assert obj == self
         # elif callable(endpoint):
         #     raise TypeError('mkentry endpoint must be Addon method or str not %r' % type(endpoint))
@@ -253,7 +242,7 @@ class Addon(object):
 
     @contextmanager
     def directory(self, safe=False, **kwargs):
-        kd = AddonDirectory(self, **kwargs)
+        kd = AddonDirectory(addon=self, **kwargs)
         try:
             yield kd
         except Exception:
@@ -292,7 +281,6 @@ class Addon(object):
         """Returns path to default art."""
 
 
-@python_2_unicode_compatible
 class Plugin(Addon):
     """
     Abstract KodiPL Addon. Plugin is kind of Addon.

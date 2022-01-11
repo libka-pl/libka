@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-from future.utils import PY3, python_2_unicode_compatible, binary_type
-
 import requests
 import json as jsonlib
 from requests.exceptions import SSLError
@@ -24,7 +17,6 @@ from kodipl.utils import encode_url, encode_params
 from kodipl.logs import log
 
 
-@python_2_unicode_compatible
 class UL3Response(object):
     """urllib3 request response with API similar to requests response."""
 
@@ -50,7 +42,6 @@ class UL3Response(object):
         return self._json
 
 
-@python_2_unicode_compatible
 class Site(object):
     """
     Access to sbstract site.
@@ -141,7 +132,7 @@ class Site(object):
             elif isinstance(data, Mapping):
                 data = encode_params(data)
                 set_header('Conttent-Type', 'application/x-www-form-urlencoded')
-            elif data is not None and not isinstance(data, binary_type):
+            elif data is not None and not isinstance(data, bytes):
                 data = data.encode('utf-8')
             resp = http.request(meth, url, headers=headers, body=data)
             resp = UL3Response(resp)

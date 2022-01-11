@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2, python_2_unicode_compatible
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
@@ -16,7 +10,6 @@ from kodi_six import xbmcgui
 from kodi_six import xbmcplugin
 
 
-@python_2_unicode_compatible
 class Cmp(object):
     """Helper. Object to compare values without TypeError exception."""
 
@@ -45,7 +38,6 @@ class Cmp(object):
     #     return False
 
 
-@python_2_unicode_compatible
 class ListItem(object):
     """
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
@@ -152,7 +144,6 @@ Sort.auto = 'auto'
 Item = namedtuple('Item', 'item endpoint folder')
 
 
-@python_2_unicode_compatible
 class AddonDirectory(object):
     """
     Tiny wrapper for plugin directory list.
@@ -218,7 +209,7 @@ class AddonDirectory(object):
 
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
-    def __init__(self, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None,
+    def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None,
                  isort=None, cache=False):
         if addon is None:
             addon = globals()['addon']
@@ -371,7 +362,7 @@ class AddonDirectory(object):
             self.sort_list.append(Sort(method, labelMask, label2Mask))
 
     # @trace
-    def new(self, title, endpoint=None, folder=False, playable=False, descr=None, format=None,
+    def new(self, title, endpoint=None, *, folder=False, playable=False, descr=None, format=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
             type=None, info=None, art=None, season=None, episode=None, label2=None):
         """
@@ -592,7 +583,6 @@ class AddonDirectory(object):
     #         pass
 
 
-@python_2_unicode_compatible
 class AddonContextMenu(list):
     """
     Thiny wrapper for plugin list item context menu.

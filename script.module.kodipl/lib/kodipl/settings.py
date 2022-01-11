@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import absolute_import, division, unicode_literals, print_function
-from future.utils import PY2
-if PY2:
-    from builtins import *  # dirty hack, force py2 to be like py3
-from future.utils import python_2_unicode_compatible, text_type, binary_type
-
 from collections import namedtuple
 # from kodi_six import xbmcplugin
 
@@ -20,7 +13,6 @@ class MISSING:
     """Internal. Type to mark as missing."""
 
 
-@python_2_unicode_compatible
 class Settings(object):
     """
     Proxy to Kodi (XMBC) settings.
@@ -93,10 +85,10 @@ class Settings(object):
             value = 'false'
         elif value is True:
             value = 'true'
-        elif isinstance(value, binary_type):
+        elif isinstance(value, bytes):
             value = value.decode('utf-8')
-        elif not isinstance(value, text_type):
-            value = text_type(value)
+        elif not isinstance(value, str):
+            value = str(value)
         self._data[key] = value
         # return xbmcplugin.setSetting(self._addon.handle, key, value)
         flog('   ----> {value!r}')
