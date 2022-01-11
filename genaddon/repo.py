@@ -62,8 +62,8 @@ def process(*paths, output: Union[str, Path]):
 def main(argv: list[str] = None):
     """Main entry."""
     p = argparse.ArgumentParser(description='Kodi repo ganerator')
-    p.add_argument('--output', '-o', default='addons.xml', help='output xml file')
-    p.add_argument('path', metavar='PATH', nargs='+', help='path to addon ot folder with addons')
+    p.add_argument('--output', '-o', default='addons.xml', help='output addons.xml file')
+    p.add_argument('path', metavar='PATH', nargs='+', help='path to addon or folder with addons')
     args = p.parse_args(argv)
     process(*args.path, output=args.output)
 
