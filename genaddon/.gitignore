@@ -1,0 +1,13 @@
+#
+
+# Python
+/.venv
+/venv
+__pycache__
+
+# ViM
+.*.sw?
+.sw?
+
+# Temp
+/addons.xml
