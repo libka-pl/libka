@@ -6,8 +6,8 @@ from kodipl.kodi import version_info as kodi_ver
 from kodipl.format import safefmt
 from kodipl.logs import log
 from kodipl.kodi import K18
-from kodi_six import xbmcgui
-from kodi_six import xbmcplugin
+import xbmcgui
+import xbmcplugin
 
 
 class Cmp(object):
