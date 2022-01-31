@@ -63,7 +63,7 @@ def raw_call(method, *args, **kwargs):
     return Call(method, (), args, kwargs)
 
 
-class Request(object):
+class Request:
     """
     Addon call request.
     """
@@ -96,7 +96,7 @@ class Addon:
         # Addon handle (integer).
         self.handle = int(argv[1])
         # Names for paramteres to encode raw Python data, don't use it.
-        self.encoded_keys = None
+        self.encoded_keys = {'_'}
         # Kodi request to plugin://...
         self.req = Request(argv[0] + argv[2], self.encoded_keys)
         # Addon ID (unique name)

@@ -91,3 +91,35 @@ def _bind_args(func: Callable, args: tuple[Any], kwargs: dict[str, Any],
 def bind_args(func: Callable, *args, **kwargs) -> Arguments:
     """Prepare args and kwargs for `func`."""
     return _bind_args(func, args, kwargs)
+
+
+def uint(v):
+    """Make unsigned int."""
+    v = int(v)
+    if v < 0:
+        raise ValueError('Negative uint')
+    return v
+
+
+def pint(v):
+    """Make positive int."""
+    v = int(v)
+    if v <= 0:
+        raise ValueError('Non-positive int')
+    return v
+
+
+def mkbool(v):
+    """Make bool."""
+    if isinstance(v, str):
+        v = v.lower()
+        if v in mkbool.true:
+            return True
+        if v in mkbool.false:
+            return False
+        raise ValueError(f'Unknown bool format {v!r}')
+    return bool(v)
+
+
+mkbool.true = {'true', 'on', '1', 'hi', 'high', 'up', 'enable', 'enabled'}
+mkbool.false = {'false', 'off', '0', 'lo', 'low', 'down', 'disable', 'disabled'}

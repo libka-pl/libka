@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 KodiPL set of utils.
 
@@ -12,6 +14,9 @@ from urllib.parse import quote_plus
 from urllib.parse import parse_qsl
 from collections.abc import Mapping
 import gzip
+from typing import (
+    Union,
+)
 
 
 class adict(dict):
@@ -125,7 +130,7 @@ ParsedUrl.__repr__ = lambda self: 'ParsedUrl(%r)' % self.raw
 ParsedUrl.__str__ = lambda self: self.raw
 
 
-def parse_url(url, encode_keys=None):
+def parse_url(url: str, encode_keys: Union[set[str], None] = None) -> ParsedUrl:
     """
     Split URL into link (scheme, host, port...) and encoded query and fragment.
     """

@@ -3,19 +3,21 @@ from __future__ import annotations
 import re
 from collections import namedtuple
 from collections.abc import Sequence
-from inspect import ismethod, isfunction
-from inspect import getfullargspec
-from inspect import signature
+from inspect import (
+    ismethod, isfunction,
+    getfullargspec, signature,
+)
 from typing import (
     TypeVar, Generic,
     Union,
-    Callable,
     get_type_hints,
 )
 from .utils import parse_url, encode_url
 from .utils import get_attr
-from .types import remove_optional
-from .types import bind_args
+from .types import (
+    remove_optional, bind_args,
+    uint, pint, mkbool,
+)
 
 
 #: Call descrtiption
@@ -23,12 +25,11 @@ from .types import bind_args
 #: - params - simple query (keywoard) arguments, passed directly in URL
 #: - args - raw positional arguments, pickled
 #: - kwargs - raw keywoard arguments, pickled
-Call = namedtuple('Call', 'method args kwargs raw')
-Call.__new__.__defaults__ = (None,)
+Call = namedtuple('Call', 'method args kwargs raw', defaults=(None,))
 
-EndpointEntry = namedtuple('EndpointEntry', 'path title')
+EndpointEntry = namedtuple('EndpointEntry', 'path title object')
 
-Route = namedtuple('Route', 'method entry')
+RouteEntry = namedtuple('RouteEntry', 'method entry regex types')
 
 
 class MISSING:
@@ -62,30 +63,12 @@ class RawArg(ArgMixin, Generic[T]):
     """Raw argument (pickle+gzip+base64) pseudo-type for annotations."""
 
 
-def entry(method=None, path=None, title=None):
-    """Decorator for addon URL entry."""
-    entry = EndpointEntry(path=path, title=title)
-
-    def decorator(method):
-        def make_call(**kwargs):
-            return Call(method, kwargs)
-
-        if path is not None:
-            if ismethod(method):
-                obj = method.__self__
-                obj._routes.append(Route(method, entry))
-        method._kodipl_endpoint = entry
-        method.call = make_call
-        return method
-
-    if method is not None:
-        return decorator(method)
-    return decorator
-
-
 def call(method, *args, **kwargs):
     """Addon action with arguments. Syntax suger. """
     return Call(method, args, kwargs)
+
+
+ArgDescr = namedtuple('ArgDescr', 'type pattern')
 
 
 class Router:
@@ -96,9 +79,42 @@ class Router:
     #: regex to find "<[type:]param>" in path.
     _RE_PATH_ARG = re.compile(r'<(?:(?P<type>\w+):)?(?P<name>[a-zA-Z]\w*|\d+)>')
 
-    def __init__(self, url=None, obj=None):
+    _ARG_TYPES = {
+        'str':    ArgDescr(str,    r'[^/]+'),
+        'path':   ArgDescr(str,    r'.+'),
+        'int':    ArgDescr(int,    r'[+-]?\d+'),
+        'uint':   ArgDescr(uint,   r'\d+'),
+        'pint':   ArgDescr(pint,   r'[1-9]\d*'),
+        'float':  ArgDescr(float,  r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(:?[eE][+-]?\d+)?'),
+        'bool':   ArgDescr(mkbool, r'true|false'),
+    }
+
+    def __init__(self, url=None, obj=None, *, grab_routes=None):
         self.url = url
         self.obj = obj
+        self.routes = []
+        if grab_routes is True:
+            self.routes = default_router.routes  # link to routes (it's NOT a copy)
+        elif hasattr(grab_routes, 'routes'):
+            self.routes = grab_routes.routes  # link to routes (it's NOT a copy)
+
+    def add_route(self, path, *, method, entry):
+        def mkarg(r):
+            name = r['name']
+            typ = r['type'] or 'str'
+            typ = self._ARG_TYPES[typ]
+            if name.isdigit():
+                types[int(name)] = typ.type
+                name = f'_{name}'
+            else:
+                types[name] = typ.type
+            return fr'(?P<{name}>{typ.pattern})'
+
+        if path is not None:
+            path = getattr(path, 'path', path)  # EndpointEntry - dack typing
+            types = {}
+            pattern = self._RE_PATH_ARG.sub(mkarg, path)
+            self.routes.append(RouteEntry(method, entry, re.compile(pattern), types))
 
     def mkentry(self, title, endpoint=None):
         """Helper. Returns (title, url) for given endpoint."""
@@ -110,22 +126,18 @@ class Router:
             else:
                 # folder(endpoint, title=None)
                 title, endpoint = None, title
-        params = {}
+        method = endpoint
         if isinstance(endpoint, Call):
-            endpoint, params = endpoint.method, endpoint.params
-        if ismethod(endpoint):
-            obj = endpoint.__self__
-            assert obj == self
-        # elif callable(endpoint):
-        #     raise TypeError('mkentry endpoint must be Addon method or str not %r' % type(endpoint))
+            method = endpoint.method
+        #    raise TypeError('mkentry endpoint must be Addon method or str not %r' % type(endpoint))
         if title is None:
-            if callable(endpoint):
-                title = endpoint.__name__
-                entry = getattr(endpoint, '_kodipl_endpoint', None)
+            if callable(method):
+                title = method.__name__
+                entry = getattr(method, '_kodipl_endpoint', None)
                 if entry is not None:
                     if entry.title is not None:
                         title = entry.title
-        url = self.mkurl(endpoint, **params)
+        url = self.mkurl(endpoint)
         if title is not None:
             if not isinstance(title, str):
                 log(f'WARNING!!! Incorrect title {title!r}')
@@ -192,7 +204,12 @@ class Router:
         def fill_path_args(r):
             """Substitute "<[type:]param>"."""
             name = r['name']
-            if name.isdigit():
+            if name == 'self':
+                if ismethod(endpoint):
+                    return '.'.join(self._find_object_path(endpoint.__self__))
+                if callable(endpoint) and not isfunction(endpoint):  # object.__call__
+                    return '.'.join(self._find_object_path(endpoint))
+            elif name.isdigit():
                 index = int(name)
                 if index in params:
                     if arguments and index < len(arguments.positional):
@@ -207,6 +224,14 @@ class Router:
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
 
         path = arguments = None
+        raw = {}
+        if isinstance(endpoint, Call):
+            args = endpoint.args + args
+            kwargs = {**endpoint.kwargs, **kwargs}
+            if endpoint.raw:
+                raw = {'_': endpoint.raw}
+            endpoint = endpoint.method
+
         # if endpoint is calable -> need to find endpoint path
         if callable(endpoint):
             arguments = bind_args(endpoint, *args, **kwargs)
@@ -256,12 +281,77 @@ class Router:
             params = {k: v for k, v in params.items()
                       if isinstance(k, str) or k >= npos or arguments.positional[k] not in params}
         # encode
-        return encode_url(self.url or '', path=path, params=params)
+        return encode_url(self.url or '', path=path, params=params, raw=raw)
 
-    def _dispatcher(self, url, root=None, *, missing=None):
+    def _get_object(self, path):
+        if self.obj is None:
+            dct = globals()
+        else:
+            dct = None
+        obj = self.obj
+        for i, name in enumerate(re.split(r'[/:.]', path)):
+            if not i and not name:
+                dct = globals()
+            elif dct is not None:
+                obj = dct[name]
+                dct = None
+            else:
+                obj = getattr(obj, name)
+        return obj
+
+    def _dispatcher_args(self, method, params, entry) -> Call:
         """
-        Dispatcher. Call pointed method with request arguments.
+        Dispatcher helper. Find method args and kwargs.
         """
+        sig = signature(method)
+        args = []
+        i = 0
+        for p in sig.parameters.values():
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
+                if not i and p.name == 'self':
+                    obj = self.obj
+                    if obj is None:
+                        obj = entry.object
+                        if isinstance(obj, str):
+                            obj = self._get_object(obj)
+                        elif 'self' in params:
+                            obj = self._get_object(params.pop('self'))
+                    elif 'self' in params:
+                        obj = self._get_object(params.pop('self'))
+                    if obj is None:
+                        breakpoint()
+                        raise ValueError('Missing object self.')
+                    params.pop('self', None)
+                    args.append(obj)
+                    i -= 1
+                elif i in params:
+                    args.append(params.pop(i))
+                elif p.name in params:
+                    args.append(params.pop(p.name))
+                else:
+                    breakpoint()
+                    raise TypeError(f'Missing argument {p.name!r} for {method.__qualname__}')
+            i += 1
+
+        if 'self' in params:
+            breakpoint()
+        return Call(method, tuple(args), params)
+
+    def _dispatcher_entry(self, url, *, root, missing=None) -> Call:
+        """
+        Dispatcher helper. Find pointed method with request arguments.
+        """
+        # Request (dack typing)
+        if isinstance(url, str):
+            url = parse_url(url, encode_keys={'_'})
+        params = url.args
+        for route in self.routes:
+            if (r := route.regex.fullmatch(url.path)):
+                for k, v in r.groupdict().items():
+                    if k[:1] == '_' and k[1:].isdigit():
+                        k = int(k[1:])
+                    params[k] = route.types[k](v)
+                return self._dispatcher_args(route.method, params, route.entry)
 
     def dispatcher(self, root=None, *, missing=None):
         """
@@ -367,11 +457,42 @@ class subobject:
         self.name = name
 
 
+default_router = Router()
+
+
+def _entry(*, router, method=None, path=None, title=None, object=None):
+    """Decorator for addon URL entry."""
+    entry = EndpointEntry(path=path, title=title, object=object)
+
+    def decorator(method):
+        def make_call(*args, **kwargs):
+            return Call(method, args, kwargs)
+
+        method._kodipl_endpoint = entry
+        method.call = make_call
+        print(f'router:{router!r}')
+        if router is not None and path is not None:
+            router.add_route(path, method=method, entry=entry)
+        return method
+
+    if method is not None:
+        return decorator(method)
+    return decorator
+
+
+def entry(method=None, path=None, *, title=None, object=None):
+    return _entry(router=default_router, method=method, path=path, title=title, object=object)
+
+
 if __name__ == '__main__':
     log = print
 
     class Bar:
         def foo(self, a):
+            print(f'{self.__class__.__name__}.foo({a!r})')
+
+        @entry(path='/<self>/GOO/<a>')
+        def goo(self, a):
             print(f'{self.__class__.__name__}.foo({a!r})')
 
     class Baz:
@@ -403,11 +524,11 @@ if __name__ == '__main__':
         def goo(self, a: PathArg, /, b: PathArg[int], c: float = 42, *, d: str):
             print(f'{self.__class__.__name__}.goo({a!r}, {b!r}, {c!r}, {d!r})')
 
-        @entry(path='/auu/<a>/buu/<uint:b>/ccc/<float:c>')
+        @entry(path='/o/auu/<a>/buu/<uint:b>/ccc/<float:c>', object='obj')
         def aoo(self, a: PathArg, /, b: PathArg[int], c: float = 42, *, d: str):
             print(f'{self.__class__.__name__}.aoo({a!r}, {b!r}, {c!r}, {d!r})')
 
-        @entry(path='/auu/<0>/buu/<uint:b>/ccc/<float:c>')
+        @entry(path='/<self>/0/auu/<0>/buu/<uint:b>/ccc/<float:c>')
         def a00(self, a: PathArg, /, b: PathArg[int], c: float = 42, *, d: str):
             print(f'{self.__class__.__name__}.a00({a!r}, {b!r}, {c!r}, {d!r})')
 
@@ -428,8 +549,14 @@ if __name__ == '__main__':
     # del foo
 
     def test(*args, **kwargs):
+        print(f'----- {args} {kwargs}')
         url = router.mkurl(*args, **kwargs)
         print(url)
+        entry = router._dispatcher_entry(url, root=None)
+        print(f'  --> {entry!r}')
+        if entry:
+            print('  ==> ', end='')
+            entry.method(*entry.args, **entry.kwargs)
 
     def xxx(a, b=1, /, c=2, *d, e, f=5, **g):
         print(f'xxx({a!r}, {b!r}, c={c!r}, d={d}, e={e!r}, f={f!r}, g={g})')
@@ -440,51 +567,57 @@ if __name__ == '__main__':
     def zzz(a, b=1, /, c=2, d=3, *, e, f=5):
         pass
 
-    print('--- :')
-    obj = Class()
-    print('ABC', obj.abc)
-    print('ABC', obj.abc)
-    router = Router(url='plugin://this')
-    xxx(10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
-    test(xxx, 10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
-    test(obj.aoo, 123, 44, d='xx')  # XXX
-    test(obj.a00, 123, 44, d='xx')  # XXX
-    test(obj.goo, 123, 44, d='xx')  # XXX
-    test(obj.adef, 11, 22)  # XXX
-    test(foo, 33)
-    test('foo', 33)
-    test(obj.foo, a=33)
-    test(obj.baz.foo, 33)
+    if 1:
+        print('--- :')
+        obj = Class()
+        print('ABC', obj.abc)
+        print('ABC', obj.abc)
+        router = Router(url='plugin://this', grab_routes=True)
+        test(Call(xxx, (11,), {'e': 14}, {'z': 99}))  # XXX
+        xxx(10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
+        test(xxx, 10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
+        test(obj.aoo, 123, 44, d='xx')  # XXX
+        test(obj.a00, 123, 44, d='xx')  # XXX
+        test(obj.goo, 123, 44, d='xx')  # XXX
+        test(obj.adef, 11, 22)  # XXX
+        test(foo, 33)
+        test('foo', 33)
+        test(obj.foo, a=33)
+        test(obj.baz.foo, 33)
+        test(obj.bar.goo, 66)
 
-    print('--- obj')
-    obj = Class()
-    obj2 = Class()
-    obj.obj = obj2
-    obj.z = Z()
-    router = Router(url='plugin://this', obj=obj)
-    test(foo, 33)
-    test(bar, 44), bar.__name__
-    test(obj.foo, 33)
-    test(obj.goo, 99, b=44, d='dd')
-    test(obj.baz.foo, 33)
-    test(obj.baz.bar.foo, 33)
-    test(obj.abc.bar.foo, 33)
-    test(obj2.foo, 33)
-    test(obj2.baz.foo, 33)
-    test(obj2.baz.bar.foo, 33)
-    test(obj2.abc.bar.foo, 33)
-    test(obj, 55)
-    test(obj.obj, 55)
-    test(obj.z)
-    # print(obj.abc)
+    if 1:
+        print('--- obj')
+        obj = Class()
+        obj2 = Class()
+        obj.obj = obj2
+        obj.z = Z()
+        router = Router(url='plugin://this', obj=obj, grab_routes=True)
+        test(foo, 33)
+        test(bar, 44), bar.__name__
+        test(obj.foo, 33)
+        test(obj.goo, 99, b=44, d='dd')
+        test(obj.baz.foo, 33)
+        test(obj.baz.bar.foo, 33)
+        test(obj.abc.bar.foo, 33)
+        test(obj2.foo, 33)
+        test(obj2.baz.foo, 33)
+        test(obj2.baz.bar.foo, 33)
+        test(obj2.abc.bar.foo, 33)
+        test(obj, 55)
+        test(obj.obj, 55)
+        test(obj.z)
+        test(obj.bar.goo, 66)
+        # print(obj.abc)
 
-    print('--- non-global obj')
-    d = {'obj': Class()}
-    d['obj'].z = Z()
-    router = Router(url='plugin://this', obj=d['obj'])
-    test(d['obj'].foo, 33)
-    test(d['obj'].baz.foo, 33)
-    test(d['obj'], 55)
-    test(d['obj'].z)
+    if 1:
+        print('--- non-global obj')
+        d = {'obj': Class()}
+        d['obj'].z = Z()
+        router = Router(url='plugin://this', obj=d['obj'], grab_routes=True)
+        test(d['obj'].foo, 33)
+        test(d['obj'].baz.foo, 33)
+        test(d['obj'], 55)
+        test(d['obj'].z)
 
     print('--- ...')
