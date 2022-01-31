@@ -76,7 +76,7 @@ class Request(object):
         # flog('XXXXX: req={self.url}, link={self.url.link!r}, params={self.params!r}')
 
 
-class Addon(object):
+class Addon:
     """
     Abstract KodiPL Addon.
     """
