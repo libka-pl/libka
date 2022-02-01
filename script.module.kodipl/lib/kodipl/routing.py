@@ -1,23 +1,30 @@
 from __future__ import annotations
 
 import re
+import asyncio
 from collections import namedtuple
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 from inspect import (
-    ismethod, isfunction,
-    getfullargspec, signature,
+    ismethod, isfunction, iscoroutinefunction,
+    signature,
+    Signature,  # typing
 )
 from typing import (
-    TypeVar, Generic,
-    Union,
-    get_type_hints,
+    TypeVar, Generic, GenericAlias,
+    overload,
+    Union, Optional, Callable, Any,
+    get_type_hints, get_args, get_origin,
 )
-from .utils import parse_url, encode_url
-from .utils import get_attr
+from .utils import parse_url, encode_url, ParsedUrl
 from .types import (
     remove_optional, bind_args,
     uint, pint, mkbool,
+    Args, KwArgs,
 )
+
+
+# type aliases
+Params = dict[Union[str, int], Any]
 
 
 #: Call descrtiption
@@ -72,7 +79,23 @@ ArgDescr = namedtuple('ArgDescr', 'type pattern')
 
 
 class Router:
-    """ """
+    """
+    URL router to manage methods and paths.
+
+    >>> @entry(path='/Foo/<a>/<int:b>')
+    >>> def foo(a, /, b, c=1, *, d: int, e=2):
+    >>>     print(f'foo(a={a!r}, b={b!r}, c={c!r}, d={d!r}, e={e!r})')
+    >>>
+    >>> def bar(a: PathArg, /, b: PathArg[int], c=1, *, d: int, e=2):
+    >>>     print(f'bar(a={a!r}, b={b!r}, c={c!r}, d={d!r}, e={e!r})')
+    >>>
+    >>> rt = Router('plugin://this')
+    >>> rt.url_for(foo, 11, 12, 13, d=14)  # plugin://this/Foo/11/12?c=13&d=14
+    >>> rt.url_for(bar, 11, 12, 13, d=14)  # plugin://this/bar/11/12?c=13&d=14
+    >>>
+    >>> rt.dispatch('plugin://this/Foo/11/12?c=13&d=14')  # foo(a='11', b=12, c='13', d=14, e=2)
+    >>> rt.dispatch('plugin://this/bar/11/12?c=13&d=14')  # bar(a='11', b=12, c='13', d=14, e=2)
+    """
 
     SAFE_CALL = False
 
@@ -89,7 +112,7 @@ class Router:
         'bool':   ArgDescr(mkbool, r'true|false'),
     }
 
-    def __init__(self, url=None, obj=None, *, grab_routes=None):
+    def __init__(self, url=None, obj=None, *, grab_routes=True):
         self.url = url
         self.obj = obj
         self.routes = []
@@ -98,7 +121,8 @@ class Router:
         elif hasattr(grab_routes, 'routes'):
             self.routes = grab_routes.routes  # link to routes (it's NOT a copy)
 
-    def add_route(self, path, *, method, entry):
+    def add_route(self, path: str, *, method: Callable, entry: EndpointEntry) -> None:
+        """Add route (ex. from @entry)."""
         def mkarg(r):
             name = r['name']
             typ = r['type'] or 'str'
@@ -115,6 +139,14 @@ class Router:
             types = {}
             pattern = self._RE_PATH_ARG.sub(mkarg, path)
             self.routes.append(RouteEntry(method, entry, re.compile(pattern), types))
+
+    @overload
+    def mkentry(self, endpoint: Union[Callable, str]) -> tuple[str, str]:
+        ...
+
+    @overload
+    def mkentry(self, title: str, endpoint: Callable) -> tuple[str, str]:
+        ...
 
     def mkentry(self, title, endpoint=None):
         """Helper. Returns (title, url) for given endpoint."""
@@ -141,10 +173,11 @@ class Router:
         if title is not None:
             if not isinstance(title, str):
                 log(f'WARNING!!! Incorrect title {title!r}')
+                title = str(title)
             title = self.translate_title(title)
         return title, url
 
-    def _find_object_path(self, obj):
+    def _find_object_path(self, obj: Any) -> list[str]:
         """Find object path (names) using `subobject` data."""
         assert obj is not None
         names = []
@@ -175,7 +208,7 @@ class Router:
                 names.insert(0, name)
         return names
 
-    def _find_global(self, obj):
+    def _find_global(self, obj: Any) -> str:
         """Find global object name for `obj`."""
         if obj is self.obj:
             return ':'
@@ -185,8 +218,8 @@ class Router:
                     return k
                 return f':{k}'
 
-    def _make_path_args(self, endpoint, path_items, params):
-        """Add arguemnts to path (if PathArgs is used)."""
+    def _make_path_args(self, endpoint: EndpointEntry, path_items: list[Any], params: KwArgs) -> None:
+        """Add arguemnts to path (if PathArgs is used). Modify `path_items`."""
         sig = signature(endpoint)
         hints = get_type_hints(endpoint)
         count = 0
@@ -197,7 +230,7 @@ class Router:
                     params.pop(count, None)
                     count += 1
 
-    def mkurl(self, endpoint: Union[str, callable], *args, **kwargs):
+    def mkurl(self, endpoint: Union[str, Callable], *args, **kwargs) -> str:
         """
         Create plugin URL to given name/method with arguments.
         """
@@ -274,15 +307,19 @@ class Router:
         # apply path args (from pattern)
         if '<' in path:
             path = self._RE_PATH_ARG.sub(fill_path_args, path)
-        # redice paramters, remove positional if keywoard exists
+        # reduce paramters: remove positional if keywoard exists, remove defaults arguments
         if arguments:
             npos = len(arguments.positional)
             params = {k: v for k, v in params.items()
-                      if isinstance(k, str) or k >= npos or arguments.positional[k] not in params}
+                      if (v != arguments.defaults.get(k)
+                          and (isinstance(k, str) or k >= npos or arguments.positional[k] not in params))}
         # encode
         return encode_url(self.url or '', path=path, params=params, raw=raw)
 
-    def _get_object(self, path, *, strict=True):
+    url_for = mkurl
+
+    def _get_object(self, path, *, strict=True) -> tuple[Callable, list[str]]:
+        """Return (object, args)."""
         if path.startswith('/'):
             path = path[1:]
         if self.obj is None:
@@ -308,7 +345,57 @@ class Router:
                     return obj, names[i:]
         return obj, []
 
-    def _dispatcher_args(self, method, params, entry) -> Call:
+    def _convert_args(self, method: Callable, args: Args, kwargs: KwArgs, *, sig: Signature) -> Call:
+        """Convert method arguments based on annotations."""
+        def posargs():
+            """Generator for itarate positional parameters."""
+            for p in sig.parameters.values():
+                if p.kind == p.VAR_POSITIONAL:
+                    while True:
+                        yield p
+                yield p
+
+        def convert(v, p):
+            """Convert (value, hint_type) -> value."""
+            t = None if p is None else hints.get(p.name)
+            if t is not None:
+                t = remove_optional(t)
+                if (x := ArgMixin.subtype(t)) is not None:
+                    t = x
+                if p.kind == p.VAR_POSITIONAL:
+                    ot = get_origin(t)
+                    if ot is not None and not issubclass(ot, str) and issubclass(ot, Sequence):
+                        t = get_args(t)[0]
+                elif p.kind == p.VAR_KEYWORD:
+                    ot = get_origin(t)
+                    if ot is not None and issubclass(ot, Mapping):
+                        type_args = get_args(t)
+                        if len(type_args) == 2:
+                            t = type_args[1]
+                if not isinstance(t, GenericAlias) and t is not Any:
+                    v = t(v)
+            return v
+
+        if sig is None:
+            sig = signature(method)
+        if all(p.annotation is p.empty for p in sig.parameters.values()):
+            hints = {}  # the is no hints at all
+        else:
+            try:
+                hints = get_type_hints(method)
+            except TypeError:
+                assert callable(method)
+                hints = get_type_hints(method.__call__)
+        try:
+            kwparam = next(iter(p for p in sig.parameters.values() if p.kind == p.VAR_KEYWORD))
+        except StopIteration:
+            kwparam = None
+        params = sig.parameters
+        args = tuple(convert(a, p) for a, p in zip(args, posargs()))
+        kwargs = {k: convert(v, params.get(k, kwparam)) for k, v in kwargs.items()}
+        return Call(method, args, kwargs)
+
+    def _dispatcher_args(self, method: Callable, params: Params, entry: EndpointEntry) -> Call:
         """
         Dispatcher helper. Find method args and kwargs.
         """
@@ -335,14 +422,15 @@ class Router:
                 elif p.name in params:
                     args.append(params.pop(p.name))
                 else:
-                    raise TypeError(f'Missing argument {p.name!r} for {method.__qualname__}')
+                    if p.default is p.empty:
+                        raise TypeError(f'Missing argument {p.name!r} for {method.__qualname__}')
             i += 1
 
         assert 'self' not in params
-        return Call(method, tuple(args), params)
+        return self._convert_args(method, args, params, sig=sig)
 
-    def _apply_args(self, method, args, kwargs):
-        # apply arguments
+    def _apply_args(self, method: Callable, args: Args, kwargs: Params) -> tuple[Args, KwArgs]:
+        """Apply arguments by method singature and returns (args, kwargs)."""
         ait = iter(args)
         args = []
         sig = signature(method)
@@ -357,7 +445,8 @@ class Router:
                         else:
                             args.append(kwargs.pop(p.name))
                     except KeyError:
-                        raise TypeError(f'Missing {i} argument {p.name!r}') from None
+                        if p.default is p.empty:
+                            raise TypeError(f'Missing {i} argument {p.name!r}') from None
             elif p.kind == p.VAR_POSITIONAL:
                 while True:
                     try:
@@ -369,9 +458,10 @@ class Router:
                             break
                     i += 1
                 break
-        return args, kwargs
+        return self._convert_args(method, args, kwargs, sig=sig)
 
-    def _dispatcher_entry(self, url, *, root, missing=None) -> Call:
+    def _dispatcher_entry(self, url: Union[str, ParsedUrl], *,
+                          root: Callable, missing: Optional[Callable] = None) -> Call:
         """
         Dispatcher helper. Find pointed method with request arguments.
         """
@@ -379,6 +469,9 @@ class Router:
         if isinstance(url, str):
             url = parse_url(url, encode_keys={'_'})
         params = {int(k) if k.isdigit() else k: v for k, v in url.args.items()}
+        raw = params.pop('_', None)
+        if raw:
+            params.update(raw)
         # search in entry(path=)
         for route in self.routes:
             if (r := route.regex.fullmatch(url.path)):
@@ -387,6 +480,9 @@ class Router:
                         k = int(k[1:])
                     params[k] = route.types[k](v)
                 return self._dispatcher_args(route.method, params, route.entry)
+        # detect root "/"
+        if root is not None and url.path == '/':
+            return Call(root, (), {})
         # find object by auto-path
         method, names = self._get_object(url.path, strict=False)
         if method is None:
@@ -397,70 +493,75 @@ class Router:
             assert all(isinstance(k, str) for k in params)
             return Call(missing, tuple(names), params)
         # apply arguments
-        args, kwargs = self._apply_args(method, names, params)
+        entry = self._apply_args(method, names, params)
 
-        assert all(isinstance(k, str) for k in kwargs)
-        return Call(method, args, kwargs)
+        # convert argument values
+        assert all(isinstance(k, str) for k in entry.kwargs)
+        return entry
 
-    def dispatcher(self, root=None, *, missing=None):
+    def sync_dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+                      missing: Optional[Callable] = None) -> Any:
+        """
+        Sync dispatch. Call pointed method with request arguments.
+
+        Find `url.path` and call method with direct and query arguments.
+        For '/' call `root` or method decoratred with @entry(path='/').
+        If no method found call `missing`.
+
+        It failes if found method is async.
+        """
+        entry = self._dispatcher_entry(url, root=root, missing=missing)
+        if entry is None or entry.method is None:
+            raise ValueError(f'Missing endpoint for {url!r}')
+        if iscoroutinefunction(entry.method):
+            raise TypeError(f'Async endpoint {entry.method.__qualname__}() in sync dispatcher for {url!r}')
+        # call pointed method
+        return entry.method(*entry.args, **entry.kwargs)
+
+    async def async_dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+                             missing: Optional[Callable] = None) -> Any:
+        """
+        Async dispatcher. Call pointed method with request arguments.
+
+        Find `url.path` and call method with direct and query arguments.
+        For '/' call `root` or method decoratred with @entry(path='/').
+        If no method found call `missing`.
+
+        It supports sync and async methods.
+        """
+        entry = self._dispatcher_entry(url, root=root, missing=missing)
+        if entry is None or entry.method is None:
+            raise ValueError(f'Missing endpoint for {url!r}')
+        # call pointed method
+        if iscoroutinefunction(entry.method):
+            return await entry.method(*entry.args, **entry.kwargs)
+        return entry.method(*entry.args, **entry.kwargs)
+
+    def dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+                 missing: Optional[Callable] = None) -> Any:
         """
         Dispatcher. Call pointed method with request arguments.
+        See: sync_dispatch() and async_dispatch().
+
+        >>> def foo():
+        >>>     Router().dispatch(url)
+        >>>
+        >>> async def bar():
+        >>>     await Router().dispatch(url)
         """
-        path = self.req.url.path
-        params = self.req.params
-        # find handler pointed by URL path
-        handler = None
-        for route in self._routes:
-            if route.entry.path == path:
-                handler = route.method
-                break
-        if handler is None:
-            if path.startswith('/'):
-                path = path[1:]
-            if path:
-                handler = get_attr(self, path, sep='/')
-            else:
-                if root is None:
-                    if self.ROOT_ENTRY:
-                        if isinstance(self.ROOT_ENTRY, str):
-                            handler = getattr(self, self.ROOT_ENTRY, None)
-                        elif isinstance(self.ROOT_ENTRY, Sequence):
-                            for name in self.ROOT_ENTRY:
-                                handler = getattr(self, name, None)
-                                if handler is not None:
-                                    break
-                else:
-                    handler = root
-        if handler is None:
-            if missing is None:
-                raise ValueError('Missing endpoint for %s (req: %s)' % (path, self.req.url))
-            handler = missing
-        # get pointed method specification
-        spec = getfullargspec(handler)
-        assert spec.args
-        assert spec.args[0] == 'self'
-        assert ismethod(handler)
-        # prepare arguments for pointed method
-        args, kwargs = [], {}
-        if spec.args and spec.args[0] == 'self':
+
+        try:
+            # Test if loop is working.
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Loop is NOT working.
             pass
-            # if not PY3:
-            #     # fix unbound method in Py2
-            #     args.append(self)
-        if spec.defaults:
-            # first fill default method arguments
-            for k, v in zip(reversed(spec.args), reversed(spec.defaults)):
-                kwargs[k] = v
-        if spec.varkw:
-            # the method has **kwargs, put all request arguments
-            kwargs.update(params)
         else:
-            # fill arguments only if method has them
-            for k in spec.args:
-                if k in params:
-                    kwargs[k] = params[k]
-        # call pointed method
-        return handler(*args, **kwargs)
+            # Loop is working.
+            # NOTE: Do not execute, just return coroutine instead, should be awaited.
+            return self.async_dispatch(url, root=root, missing=missing)
+        # Execute dispatch in new loop.
+        return asyncio.run(self.async_dispatch(url, root=root, missing=missing))
 
 
 class subobject:
@@ -506,7 +607,7 @@ class subobject:
         self.name = name
 
 
-default_router = Router()
+default_router = Router(grab_routes=False)
 
 
 def _entry(*, router, method=None, path=None, title=None, object=None):
@@ -519,7 +620,6 @@ def _entry(*, router, method=None, path=None, title=None, object=None):
 
         method._kodipl_endpoint = entry
         method.call = make_call
-        print(f'router:{router!r}')
         if router is not None and path is not None:
             router.add_route(path, method=method, entry=entry)
         return method
@@ -606,6 +706,7 @@ if __name__ == '__main__':
         if entry:
             print('  ==> ', end='')
             entry.method(*entry.args, **entry.kwargs)
+            print('')
 
     def xxx(a, b=1, /, c=2, *d, e, f=5, **g):
         print(f'xxx({a!r}, {b!r}, c={c!r}, d={d}, e={e!r}, f={f!r}, g={g})')
@@ -659,6 +760,12 @@ if __name__ == '__main__':
         test(obj.bar.goo, 66)
         # print(obj.abc)
 
+        def root():
+            print('root /')
+
+        router._dispatcher_entry('plugin://this', root=root)
+        router._dispatcher_entry('plugin://this/', root=root)
+
     if 1:
         print('--- non-global obj')
         d = {'obj': Class()}
@@ -668,5 +775,68 @@ if __name__ == '__main__':
         test(d['obj'].baz.foo, 33)
         test(d['obj'], 55)
         test(d['obj'].z)
+
+    if 1:
+        print('--- run disptacher')
+
+        async def aroot():
+            print('ROOT')
+            return 42
+
+        async def arun():
+            return await Router().dispatch('/', root=aroot)
+
+        print('sync ', Router().dispatch('/', root=aroot))
+        print('async', asyncio.run(arun()))
+
+    if 1:
+        print('--- disptach args and kwargs')
+        default_router = Router(grab_routes=False)
+
+        @entry(path='/Foo/<a>/<int:b>')
+        def foo(a, /, b, c=1, *, d: int, e=2):
+            print(f'foo(a={a!r}, b={b!r}, c={c!r}, d={d!r}, e={e!r})')
+
+        def bar(a: PathArg, /, b: PathArg[int], c=1, *, d: int, e=2):
+            print(f'bar(a={a!r}, b={b!r}, c={c!r}, d={d!r}, e={e!r})')
+
+        def baz(a: PathArg, /, b: PathArg[int], *c: tuple[int], d: int, e=2, **z: dict[str, int]):
+            print(f'bar(a={a!r}, b={b!r}, c={c!r}, d={d!r}, e={e!r}, z={z!r})')
+
+        rt = Router('plugin://this')
+        print(rt.url_for(foo, 11, 12, 13, d=14))  # plugin://this/bar/11/12?c=13&d=14
+        print(rt.url_for(bar, 11, 12, 13, d=14))  # plugin://this/bar/11/12?c=13&d=14
+        print(rt.url_for(baz, 11, 12, 131, 132, d=14, x=21, z=23))  # plugin://this/bar/11/12?c=13&d=14
+
+        rt.dispatch('plugin://this/Foo/11/12?c=13&d=14')  # foo(a='11', b=12, c='13', d=14, e=2)
+        rt.dispatch('plugin://this/bar/11/12?c=13&d=14')  # bar(a='11', b=12, c='13', d=14, e=2)
+        rt.dispatch('plugin://this/baz/11/12?2=131&3=132&d=14&x=21&z=23')  # bar(a='11', b=12, c='13', d=14, e=2)
+
+        def play(vid: PathArg):
+            print(f'Playing video with ID {vid}')
+
+        url = rt.url_for(play, 123)
+        print(f'URL {url} -> ', end='')
+        rt.dispatch(url)
+
+    if 1:
+        print('--- disptach the same path with different arg types')
+        default_router = Router(grab_routes=False)
+
+        @entry(path='/aaa/<a>/<int:b>')
+        def foo(a, /, b, c=1):
+            print(f'foo(a={a!r}, b={b!r}, c={c!r})')
+
+        @entry(path='/aaa/<a>/<b>')
+        def bar(a, /, b, c=1):
+            print(f'bar(a={a!r}, b={b!r}, c={c!r})')
+
+        rt = Router('plugin://this')
+
+        print(rt.url_for(foo, 'A', 99))   # plugin://this/aaa/A/99
+        print(rt.url_for(bar, 'A', 'B'))  # plugin://this/aaa/A/B
+
+        rt.sync_dispatch('plugin://this/aaa/A/99')  # foo(a='A', b=99, c=1)
+        rt.sync_dispatch('plugin://this/aaa/A/B')   # bar(a='A', b='B', c=1)
 
     print('--- ...')

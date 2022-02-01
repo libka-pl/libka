@@ -15,7 +15,7 @@ from urllib.parse import parse_qsl
 from collections.abc import Mapping
 import gzip
 from typing import (
-    Union,
+    Optional,
 )
 
 
@@ -105,7 +105,7 @@ def decode_data(octet):
     return pickle.loads(gzip.decompress(b64decode(octet, b'-_')))
 
 
-ParsedUrl = namedtuple('ParsedUrl', 'raw scheme raw_host path query fragment')
+ParsedUrl = namedtuple('ParsedUrl', 'raw scheme raw_host path query fragment', defaults=(None,))
 """
 Paresed URL.
 
@@ -122,7 +122,6 @@ Properties:
  - host     - host, ex. plugin ID for Kodi plugin.
  - args     - single query args (last form query).
 """
-ParsedUrl.__new__.__defaults__ = 1*(None,)
 ParsedUrl.link = property(lambda self: '%s://%s%s' % (self.scheme or 'plugin', self.host, self.path or '/'))
 ParsedUrl.host = property(lambda self: self.raw_host.rpartition('@')[2])
 ParsedUrl.args = property(lambda self: adict((k, vv[-1]) for k, vv in self.query.items() if vv))
@@ -130,9 +129,12 @@ ParsedUrl.__repr__ = lambda self: 'ParsedUrl(%r)' % self.raw
 ParsedUrl.__str__ = lambda self: self.raw
 
 
-def parse_url(url: str, encode_keys: Union[set[str], None] = None) -> ParsedUrl:
+def parse_url(url: str, *, encode_keys: Optional[set[str]] = None, relative: bool = False) -> ParsedUrl:
     """
     Split URL into link (scheme, host, port...) and encoded query and fragment.
+
+    `encode_keys` are decoded (from pickle+gzip+base64).
+    `relative` allows `path` without `/` on the beginning.
     """
     def parse_val(key, val):
         if key in encode_keys:
@@ -146,8 +148,8 @@ def parse_url(url: str, encode_keys: Union[set[str], None] = None) -> ParsedUrl:
     query = mkmdict((k, parse_val(k, v)) for k, v in parse_qsl(query))
     scheme, _, link = link.rpartition('://')
     host, sep, path = link.partition('/')
-    if sep:
-        path = '/%s' % path
+    if sep or not relative:
+        path = f'/{path}'
     return ParsedUrl(url, scheme, host, path, query, fragment)
 
 

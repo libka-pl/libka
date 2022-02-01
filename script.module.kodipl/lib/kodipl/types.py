@@ -9,6 +9,11 @@ from inspect import signature
 from collections import namedtuple
 
 
+# type aliases
+Args = tuple[Any]
+KwArgs = dict[str, Any]
+
+
 T = TypeVar('T')
 
 
@@ -26,7 +31,7 @@ def remove_optional(ann: Union[Optional[T], T]) -> T:
     return ann
 
 
-Arguments = namedtuple('Arguments', 'args kwargs arguments positional indexes')
+Arguments = namedtuple('Arguments', 'args kwargs arguments positional indexes defaults')
 
 
 def _bind_args(func: Callable, args: tuple[Any], kwargs: dict[str, Any],
@@ -85,7 +90,10 @@ def _bind_args(func: Callable, args: tuple[Any], kwargs: dict[str, Any],
         if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY):
             if p.default is not p.empty:
                 aa.setdefault(p.name, p.default)
-    return Arguments(args, kwargs, aa, tuple(positional), indexes={n: i for i, n in enumerate(positional)})
+    return Arguments(args, kwargs, aa, tuple(positional),
+                     indexes={n: i for i, n in enumerate(positional)},
+                     defaults={p.name: p.default for p in sig.parameters.values() if p.default is not p.empty}
+                     )
 
 
 def bind_args(func: Callable, *args, **kwargs) -> Arguments:
