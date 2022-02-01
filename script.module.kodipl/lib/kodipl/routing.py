@@ -220,7 +220,6 @@ class Router:
                     if arguments:
                         params.pop(arguments.indexes.get(name), None)
                     return str(params.pop(name))
-            breakpoint()
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
 
         path = arguments = None
@@ -283,21 +282,31 @@ class Router:
         # encode
         return encode_url(self.url or '', path=path, params=params, raw=raw)
 
-    def _get_object(self, path):
+    def _get_object(self, path, *, strict=True):
+        if path.startswith('/'):
+            path = path[1:]
         if self.obj is None:
             dct = globals()
         else:
             dct = None
         obj = self.obj
-        for i, name in enumerate(re.split(r'[/:.]', path)):
+        names = re.split(r'[/:.]', path)
+        if obj is not None and len(names) <= 2 and not any(names):
+            return obj, []
+        for i, name in enumerate(names):
             if not i and not name:
                 dct = globals()
             elif dct is not None:
                 obj = dct[name]
                 dct = None
             else:
-                obj = getattr(obj, name)
-        return obj
+                try:
+                    obj = getattr(obj, name)
+                except AttributeError:
+                    if strict:
+                        raise
+                    return obj, names[i:]
+        return obj, []
 
     def _dispatcher_args(self, method, params, entry) -> Call:
         """
@@ -312,14 +321,11 @@ class Router:
                     obj = self.obj
                     if obj is None:
                         obj = entry.object
-                        if isinstance(obj, str):
-                            obj = self._get_object(obj)
-                        elif 'self' in params:
-                            obj = self._get_object(params.pop('self'))
+                    if isinstance(obj, str):
+                        obj, _ = self._get_object(obj)
                     elif 'self' in params:
-                        obj = self._get_object(params.pop('self'))
+                        obj, _ = self._get_object(params.pop('self'))
                     if obj is None:
-                        breakpoint()
                         raise ValueError('Missing object self.')
                     params.pop('self', None)
                     args.append(obj)
@@ -329,13 +335,41 @@ class Router:
                 elif p.name in params:
                     args.append(params.pop(p.name))
                 else:
-                    breakpoint()
                     raise TypeError(f'Missing argument {p.name!r} for {method.__qualname__}')
             i += 1
 
-        if 'self' in params:
-            breakpoint()
+        assert 'self' not in params
         return Call(method, tuple(args), params)
+
+    def _apply_args(self, method, args, kwargs):
+        # apply arguments
+        ait = iter(args)
+        args = []
+        sig = signature(method)
+        for i, p in enumerate(sig.parameters.values()):
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
+                try:
+                    args.append(next(ait))
+                except StopIteration:
+                    try:
+                        if i in kwargs:
+                            args.append(kwargs.pop(i))
+                        else:
+                            args.append(kwargs.pop(p.name))
+                    except KeyError:
+                        raise TypeError(f'Missing {i} argument {p.name!r}') from None
+            elif p.kind == p.VAR_POSITIONAL:
+                while True:
+                    try:
+                        args.append(next(ait))
+                    except StopIteration:
+                        try:
+                            args.append(kwargs.pop(i))
+                        except KeyError:
+                            break
+                    i += 1
+                break
+        return args, kwargs
 
     def _dispatcher_entry(self, url, *, root, missing=None) -> Call:
         """
@@ -344,7 +378,8 @@ class Router:
         # Request (dack typing)
         if isinstance(url, str):
             url = parse_url(url, encode_keys={'_'})
-        params = url.args
+        params = {int(k) if k.isdigit() else k: v for k, v in url.args.items()}
+        # search in entry(path=)
         for route in self.routes:
             if (r := route.regex.fullmatch(url.path)):
                 for k, v in r.groupdict().items():
@@ -352,6 +387,20 @@ class Router:
                         k = int(k[1:])
                     params[k] = route.types[k](v)
                 return self._dispatcher_args(route.method, params, route.entry)
+        # find object by auto-path
+        method, names = self._get_object(url.path, strict=False)
+        if method is None:
+            if missing is False:
+                return
+            if missing is None:
+                raise ValueError(f'Missing handle for {url.path!r}')
+            assert all(isinstance(k, str) for k in params)
+            return Call(missing, tuple(names), params)
+        # apply arguments
+        args, kwargs = self._apply_args(method, names, params)
+
+        assert all(isinstance(k, str) for k in kwargs)
+        return Call(method, args, kwargs)
 
     def dispatcher(self, root=None, *, missing=None):
         """
