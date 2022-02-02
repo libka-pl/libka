@@ -16,7 +16,10 @@ from collections.abc import Mapping
 import gzip
 from typing import (
     Optional,
+    Union,
 )
+from pathlib import Path
+from .types import KwArgs
 
 
 class adict(dict):
@@ -65,16 +68,16 @@ def item_iter(obj):
     return obj
 
 
-def get_attr(obj, name, default=None, sep='.'):
+def get_attr(obj, name, *, default=None, sep='.'):
     """
     Get attribute `name` separated by `sep` (default a dot).
 
     If `obj` is None, first symbol id point to global variable.
     """
-    if isinstance(name, str):
-        name = name.split(sep)
     if not name:
         return default
+    if isinstance(name, str):
+        name = name.split(sep)
     if obj is None:
         try:
             obj = globals()[name[0]]
@@ -173,7 +176,8 @@ def encode_params(params=None, raw=None):
         ('%s=%s' % (quote_str_plus(k), encode_data(v)) for k, v in raw)))
 
 
-def encode_url(url, path=None, params=None, raw=None):
+def encode_url(url: Union[str, ParsedUrl], path: Optional[Union[str, Path]] = None,
+               params: Optional[KwArgs] = None, raw: Optional[KwArgs] = None):
     """
     Helper. Make URL with given data.
 
@@ -181,18 +185,24 @@ def encode_url(url, path=None, params=None, raw=None):
     All data from `params` are quoted.
     All data from `raw` are picked (+gzip +b64).
     """
+    if url is None:
+        raise TypeError(f'encode_url: url must str or ParsedUrl not {url.__class__.__name__}')
     if path is not None:
-        if url.startswith('//'):
-            scheme, url = '//', url[2:]
+        link, _, query = str(url).partition('?')
+        if link.startswith('//'):
+            scheme, link = '//', link[2:]
         else:
-            scheme, sep, url = url.rpartition('://')
+            scheme, sep, link = link.rpartition('://')
             scheme += sep
-        host, sep, link = url.partition('/')
+        host, sep, upath = link.partition('/')
+        path = str(path)
         if path.startswith('/'):
-            url = '%s%s%s' % (scheme, host, path)
-        else:
-            link = link.rpartition('/')[0]
-            url = '%s%s%s%s' % (scheme, host, link or '/', path)
+            upath, path = '', path[1:]
+        elif not upath.endswith('/'):
+            upath = upath.rpartition('/')[0]
+            if upath:
+                upath += '/'
+        url = f'{scheme}{host}/{upath}{path}'
     if not params and not raw:
         return url
     sep = '&' if '?' in url else '?'

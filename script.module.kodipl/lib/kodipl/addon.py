@@ -68,8 +68,8 @@ class Request:
     Addon call request.
     """
 
-    def __init__(self, url, encoded_keys=None):
-        self.url = parse_url(url, encoded_keys)
+    def __init__(self, url, *, encoded_keys=None):
+        self.url = parse_url(url, encoded_keys=encoded_keys)
         self.params = self.url.args
         # flog('XXXXX: argv: {sys.argv}')
         # flog('XXXXX: url:  {list(self.url)}')

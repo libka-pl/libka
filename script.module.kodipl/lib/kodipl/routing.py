@@ -112,14 +112,15 @@ class Router:
         'bool':   ArgDescr(mkbool, r'true|false'),
     }
 
-    def __init__(self, url=None, obj=None, *, grab_routes=True):
+    def __init__(self, url: str = None, obj: object = None, *,
+                 standalone: bool = False, router: Router = None):
         self.url = url
         self.obj = obj
         self.routes = []
-        if grab_routes is True:
+        if standalone is False:
             self.routes = default_router.routes  # link to routes (it's NOT a copy)
-        elif hasattr(grab_routes, 'routes'):
-            self.routes = grab_routes.routes  # link to routes (it's NOT a copy)
+        if router is not None:
+            self.routes.extend(router.routes)
 
     def add_route(self, path: str, *, method: Callable, entry: EndpointEntry) -> None:
         """Add route (ex. from @entry)."""
@@ -607,7 +608,7 @@ class subobject:
         self.name = name
 
 
-default_router = Router(grab_routes=False)
+default_router = Router(standalone=True)
 
 
 def _entry(*, router, method=None, path=None, title=None, object=None):
@@ -722,7 +723,7 @@ if __name__ == '__main__':
         obj = Class()
         print('ABC', obj.abc)
         print('ABC', obj.abc)
-        router = Router(url='plugin://this', grab_routes=True)
+        router = Router(url='plugin://this')
         test(Call(xxx, (11,), {'e': 14}, {'z': 99}))  # XXX
         xxx(10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
         test(xxx, 10, 11, 12, 13, 14, e=24, g=26, h=27)  # XXX XXX
@@ -742,7 +743,7 @@ if __name__ == '__main__':
         obj2 = Class()
         obj.obj = obj2
         obj.z = Z()
-        router = Router(url='plugin://this', obj=obj, grab_routes=True)
+        router = Router(url='plugin://this', obj=obj)
         test(foo, 33)
         test(bar, 44), bar.__name__
         test(obj.foo, 33)
@@ -770,7 +771,7 @@ if __name__ == '__main__':
         print('--- non-global obj')
         d = {'obj': Class()}
         d['obj'].z = Z()
-        router = Router(url='plugin://this', obj=d['obj'], grab_routes=True)
+        router = Router(url='plugin://this', obj=d['obj'])
         test(d['obj'].foo, 33)
         test(d['obj'].baz.foo, 33)
         test(d['obj'], 55)
@@ -791,7 +792,7 @@ if __name__ == '__main__':
 
     if 1:
         print('--- disptach args and kwargs')
-        default_router = Router(grab_routes=False)
+        default_router = Router(standalone=True)
 
         @entry(path='/Foo/<a>/<int:b>')
         def foo(a, /, b, c=1, *, d: int, e=2):
@@ -821,7 +822,7 @@ if __name__ == '__main__':
 
     if 1:
         print('--- disptach the same path with different arg types')
-        default_router = Router(grab_routes=False)
+        default_router = Router(standalone=True)
 
         @entry(path='/aaa/<a>/<int:b>')
         def foo(a, /, b, c=1):
