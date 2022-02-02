@@ -68,8 +68,8 @@ class Request:
     Addon call request.
     """
 
-    def __init__(self, url, *, encoded_keys=None):
-        self.url = parse_url(url, encoded_keys=encoded_keys)
+    def __init__(self, url, *, raw_keys=None):
+        self.url = parse_url(url, raw=raw_keys)
         self.params = self.url.args
         # flog('XXXXX: argv: {sys.argv}')
         # flog('XXXXX: url:  {list(self.url)}')
@@ -98,7 +98,7 @@ class Addon:
         # Names for paramteres to encode raw Python data, don't use it.
         self.encoded_keys = {'_'}
         # Kodi request to plugin://...
-        self.req = Request(argv[0] + argv[2], self.encoded_keys)
+        self.req = Request(argv[0] + argv[2], raw_keys=self.encoded_keys)
         # Addon ID (unique name)
         self.id = self.req.url.host
         # XMBC (Kodi) Addon

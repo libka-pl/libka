@@ -132,20 +132,20 @@ ParsedUrl.__repr__ = lambda self: 'ParsedUrl(%r)' % self.raw
 ParsedUrl.__str__ = lambda self: self.raw
 
 
-def parse_url(url: str, *, encode_keys: Optional[set[str]] = None, relative: bool = False) -> ParsedUrl:
+def parse_url(url: str, *, raw: Optional[set[str]] = None, relative: bool = False) -> ParsedUrl:
     """
     Split URL into link (scheme, host, port...) and encoded query and fragment.
 
-    `encode_keys` are decoded (from pickle+gzip+base64).
+    `raw` are decoded (from pickle+gzip+base64).
     `relative` allows `path` without `/` on the beginning.
     """
     def parse_val(key, val):
-        if key in encode_keys:
+        if key in raw:
             return decode_data(val)
         return val
 
-    if encode_keys is None:
-        encode_keys = ()
+    if raw is None:
+        raw = ()
     link, _, fragment = url.partition('#')
     link, _, query = link.partition('?')
     query = mkmdict((k, parse_val(k, v)) for k, v in parse_qsl(query))

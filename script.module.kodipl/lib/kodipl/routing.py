@@ -468,7 +468,7 @@ class Router:
         """
         # Request (dack typing)
         if isinstance(url, str):
-            url = parse_url(url, encode_keys={'_'})
+            url = parse_url(url, raw={'_'})
         params = {int(k) if k.isdigit() else k: v for k, v in url.args.items()}
         raw = params.pop('_', None)
         if raw:
