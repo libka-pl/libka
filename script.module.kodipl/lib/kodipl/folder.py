@@ -52,7 +52,8 @@ class ListItem(object):
         self.type = type
         self._info = {}
         self._props = {}
-        self._kodipl_item.setInfo(self.type, self._info)
+        if self.type is not None:
+            self._kodipl_item.setInfo(self.type, self._info)
 
     def __repr__(self):
         return 'ListItem(%r)' % self._kodipl_item
@@ -412,8 +413,10 @@ class AddonDirectory(object):
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
         # log.error('>>> ENTER...')  # DEBUG
+        if type is None:
+            type = 'video' if self.type is None else self.type
         title, url = self.addon.mkentry(title, endpoint)
-        item = ListItem(title, url=url, folder=folder)
+        item = ListItem(title, url=url, folder=folder, type=type)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -432,8 +435,6 @@ class AddonDirectory(object):
                 menu = AddonContextMenu(menu, addon=self.addon)
             item.addContextMenuItems(menu)
         # info
-        if type is None:
-            type = 'video' if self.type is None else self.type
         info = {} if info is None else dict(info)
         info.setdefault('title', title)
         if descr is not None:
