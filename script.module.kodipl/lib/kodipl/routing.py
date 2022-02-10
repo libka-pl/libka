@@ -366,9 +366,9 @@ class Router:
             t = None if p is None else hints.get(p.name)
             if t is not None:
                 t = remove_optional(t)
-                ot = get_origin(t)
                 if (x := ArgMixin.subtype(t)) is not None:
                     t = x
+                ot = get_origin(t)
                 if p.kind == p.VAR_POSITIONAL:
                     if ot is not None and not issubclass(ot, str) and issubclass(ot, Sequence):
                         t = get_args(t)[0]
