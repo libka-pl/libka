@@ -4,8 +4,7 @@ from collections.abc import Sequence, Mapping
 from kodipl.utils import setdefaultx
 from kodipl.kodi import version_info as kodi_ver
 from kodipl.format import safefmt
-from kodipl.logs import log
-from kodipl.kodi import K18
+# from kodipl.logs import log
 import xbmcgui
 import xbmcplugin
 
@@ -241,11 +240,8 @@ class AddonDirectory(object):
 
     def close(self, success=True):
         def add_sort_method(sortMethod, labelMask, label2Mask):
-            if K18:
-                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod, label2Mask=label2Mask)
-            else:
-                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
-                                         labelMask=labelMask, label2Mask=label2Mask)
+            xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
+                                     labelMask=labelMask, label2Mask=label2Mask)
 
         # custom exiting
         handler = getattr(self.addon, 'on_directory_exit', None)
