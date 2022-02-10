@@ -12,11 +12,11 @@ class MyPlugin(Plugin):
         super().__init__()
 
     def home(self):
-        with self.directory() as kd:
+        with self.directory(type='music') as kd:
             kd.menu('Aaa', call(self.foo, 42))
 
     def foo(self, a):
-        pass
+        print(f'foo(a={a!r})')
 
 
 MyPlugin().run()

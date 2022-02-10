@@ -42,7 +42,7 @@ class ListItem(object):
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, url=None, folder=None, type='video'):
+    def __init__(self, name, url=None, folder=None, type=None):
         if isinstance(name, xbmcgui.ListItem):
             self._kodipl_item = name
         else:
@@ -109,6 +109,8 @@ class ListItem(object):
             self.type = type
         if type != self.type:
             raise ValueError('Type mismatch %r != %r' % (self.type, type))
+        if self.type is None:
+            raise TypeError('setInfo: type is None')
         self._info.update(infoLabels)
         self._kodipl_item.setInfo(self.type, self._info)
 
