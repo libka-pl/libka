@@ -10,7 +10,7 @@ from inspect import (
     Signature,  # typing
 )
 from typing import (
-    TypeVar, Generic, GenericAlias,
+    TypeVar, Generic,
     overload,
     Union, Optional, Callable, Any,
     get_type_hints, get_args, get_origin,
@@ -362,19 +362,18 @@ class Router:
             t = None if p is None else hints.get(p.name)
             if t is not None:
                 t = remove_optional(t)
+                ot = get_origin(t)
                 if (x := ArgMixin.subtype(t)) is not None:
                     t = x
                 if p.kind == p.VAR_POSITIONAL:
-                    ot = get_origin(t)
                     if ot is not None and not issubclass(ot, str) and issubclass(ot, Sequence):
                         t = get_args(t)[0]
                 elif p.kind == p.VAR_KEYWORD:
-                    ot = get_origin(t)
                     if ot is not None and issubclass(ot, Mapping):
                         type_args = get_args(t)
                         if len(type_args) == 2:
                             t = type_args[1]
-                if not isinstance(t, GenericAlias) and t is not Any:
+                if ot is None and t is not Any:
                     v = t(v)
             return v
 
