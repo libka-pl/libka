@@ -8,13 +8,13 @@ from inspect import (
     ismethod, isfunction, iscoroutinefunction,
     signature,
     Signature,  # typing
-    Dict,
 )
 from typing import (
     TypeVar, Generic, GenericAlias,
     overload,
     Union, Optional, Callable, Any,
     get_type_hints, get_args, get_origin,
+    Dict,
 )
 from .utils import parse_url, encode_url, ParsedUrl
 from .types import (

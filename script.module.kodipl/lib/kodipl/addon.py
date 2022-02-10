@@ -12,7 +12,7 @@ from kodipl.settings import Settings
 from kodipl.logs import log
 from kodipl.resources import Resources
 from kodipl.folder import AddonDirectory
-from kodipl.router import Router
+from kodipl.routing import Router, entry
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
 
