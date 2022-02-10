@@ -68,7 +68,7 @@ class Addon:
         self.router = router
         if self.router is None:
             plugin_link = f'{self.req.url.scheme or "plugin"}://{self.id}'
-            self.router = Router(plugin_link, obj=self, standalone=False)
+            self.router = Router(plugin_link, obj=self, addon=self, standalone=False)
         # XMBC (Kodi) Addon
         # self.xbmc_addon = XbmcAddon(id=self.id)
         self.xbmc_addon = XbmcAddon()
@@ -129,7 +129,7 @@ class Addon:
         return self.dispatch()
 
     @contextmanager
-    def directory(self, safe: Optional[bool] = False, **kwargs):
+    def directory(self, *, safe: Optional[bool] = False, **kwargs):
         kd = AddonDirectory(addon=self, **kwargs)
         try:
             yield kd

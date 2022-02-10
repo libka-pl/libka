@@ -16,6 +16,7 @@ from typing import (
     get_type_hints, get_args, get_origin,
     Dict,
 )
+from .logs import log
 from .utils import parse_url, encode_url, ParsedUrl
 from .types import (
     remove_optional, bind_args,
@@ -113,8 +114,9 @@ class Router:
         'bool':   ArgDescr(mkbool, r'true|false'),
     }
 
-    def __init__(self, url: str = None, obj: object = None, *,
-                 standalone: bool = False, router: Router = None):
+    def __init__(self, url: Optional[str] = None, obj: Optional[object] = None, *,
+                 standalone: Optional[bool] = False, router: Optional[Router] = None,
+                 addon: Optional['Addon'] = None):
         self.url = url
         self.obj = obj
         self.routes = []
@@ -122,6 +124,7 @@ class Router:
             self.routes = default_router.routes  # link to routes (it's NOT a copy)
         if router is not None:
             self.routes.extend(router.routes)
+        self.addon = addon
 
     def add_route(self, path: str, *, method: Callable, entry: EndpointEntry) -> None:
         """Add route (ex. from @entry)."""
@@ -174,9 +177,10 @@ class Router:
         url = self.mkurl(endpoint)
         if title is not None:
             if not isinstance(title, str):
-                log(f'WARNING!!! Incorrect title {title!r}')
+                log.warning(f'WARNING!!! Incorrect title {title!r}')
                 title = str(title)
-            title = self.translate_title(title)
+            if self.addon is not None:
+                title = self.addon.translate_title(title)
         return title, url
 
     def _find_object_path(self, obj: Any) -> list[str]:
@@ -188,7 +192,7 @@ class Router:
             try:
                 parent = obj._subobject_parent
             except AttributeError:
-                return None
+                break
             if parent is None:
                 break
             try:
