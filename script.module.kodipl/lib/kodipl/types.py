@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import (
     Union, Optional, TypeVar,
     Callable, Any,
+    Tuple, Dict,
     get_origin, get_args,
 )
 from inspect import signature
@@ -10,8 +11,8 @@ from collections import namedtuple
 
 
 # type aliases
-Args = tuple[Any]
-KwArgs = dict[str, Any]
+Args = Tuple[Any]
+KwArgs = Dict[str, Any]
 
 
 T = TypeVar('T')
