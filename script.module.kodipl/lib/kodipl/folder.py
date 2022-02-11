@@ -4,8 +4,7 @@ from collections.abc import Sequence, Mapping
 from kodipl.utils import setdefaultx
 from kodipl.kodi import version_info as kodi_ver
 from kodipl.format import safefmt
-from kodipl.logs import log
-from kodipl.kodi import K18
+# from kodipl.logs import log
 import xbmcgui
 import xbmcplugin
 
@@ -43,7 +42,7 @@ class ListItem(object):
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, url=None, folder=None, type='video'):
+    def __init__(self, name, url=None, folder=None, type=None):
         if isinstance(name, xbmcgui.ListItem):
             self._kodipl_item = name
         else:
@@ -53,7 +52,8 @@ class ListItem(object):
         self.type = type
         self._info = {}
         self._props = {}
-        self._kodipl_item.setInfo(self.type, self._info)
+        if self.type is not None:
+            self._kodipl_item.setInfo(self.type, self._info)
 
     def __repr__(self):
         return 'ListItem(%r)' % self._kodipl_item
@@ -110,6 +110,8 @@ class ListItem(object):
             self.type = type
         if type != self.type:
             raise ValueError('Type mismatch %r != %r' % (self.type, type))
+        if self.type is None:
+            raise TypeError('setInfo: type is None')
         self._info.update(infoLabels)
         self._kodipl_item.setInfo(self.type, self._info)
 
@@ -241,11 +243,8 @@ class AddonDirectory(object):
 
     def close(self, success=True):
         def add_sort_method(sortMethod, labelMask, label2Mask):
-            if K18:
-                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod, label2Mask=label2Mask)
-            else:
-                xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
-                                         labelMask=labelMask, label2Mask=label2Mask)
+            xbmcplugin.addSortMethod(self.addon.handle, sortMethod=sortMethod,
+                                     labelMask=labelMask, label2Mask=label2Mask)
 
         # custom exiting
         handler = getattr(self.addon, 'on_directory_exit', None)
@@ -414,8 +413,10 @@ class AddonDirectory(object):
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
         # log.error('>>> ENTER...')  # DEBUG
+        if type is None:
+            type = 'video' if self.type is None else self.type
         title, url = self.addon.mkentry(title, endpoint)
-        item = ListItem(title, url=url, folder=folder)
+        item = ListItem(title, url=url, folder=folder, type=type)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -434,8 +435,6 @@ class AddonDirectory(object):
                 menu = AddonContextMenu(menu, addon=self.addon)
             item.addContextMenuItems(menu)
         # info
-        if type is None:
-            type = 'video' if self.type is None else self.type
         info = {} if info is None else dict(info)
         info.setdefault('title', title)
         if descr is not None:
