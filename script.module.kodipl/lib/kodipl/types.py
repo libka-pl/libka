@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import (
     Union, Optional, TypeVar,
     Callable, Any,
@@ -35,7 +33,7 @@ def remove_optional(ann: Union[Optional[T], T]) -> T:
 Arguments = namedtuple('Arguments', 'args kwargs arguments positional indexes defaults')
 
 
-def _bind_args(func: Callable, args: tuple[Any], kwargs: dict[str, Any],
+def _bind_args(func: Callable, args: Tuple[Any], kwargs: Dict[str, Any],
                force_keyword_arguments: bool = False) -> Arguments:
     """
     Prepare args and kwargs for `func`.

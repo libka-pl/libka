@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import re
 import asyncio
 from collections import namedtuple
@@ -14,7 +12,7 @@ from typing import (
     overload,
     Union, Optional, Callable, Any,
     get_type_hints, get_args, get_origin,
-    Dict,
+    Dict, List, Tuple,
 )
 from .logs import log
 from .utils import parse_url, encode_url, ParsedUrl
@@ -115,7 +113,7 @@ class Router:
     }
 
     def __init__(self, url: Optional[str] = None, obj: Optional[object] = None, *,
-                 standalone: Optional[bool] = False, router: Optional[Router] = None,
+                 standalone: Optional[bool] = False, router: Optional['Router'] = None,
                  addon: Optional['Addon'] = None):
         self.url = url
         self.obj = obj
@@ -146,11 +144,11 @@ class Router:
             self.routes.append(RouteEntry(method, entry, re.compile(pattern), types))
 
     @overload
-    def mkentry(self, endpoint: Union[Callable, str]) -> tuple[str, str]:
+    def mkentry(self, endpoint: Union[Callable, str]) -> Tuple[str, str]:
         ...
 
     @overload
-    def mkentry(self, title: str, endpoint: Callable) -> tuple[str, str]:
+    def mkentry(self, title: str, endpoint: Callable) -> Tuple[str, str]:
         ...
 
     def mkentry(self, title, endpoint=None):
@@ -183,7 +181,7 @@ class Router:
                 title = self.addon.translate_title(title)
         return title, url
 
-    def _find_object_path(self, obj: Any) -> list[str]:
+    def _find_object_path(self, obj: Any) -> List[str]:
         """Find object path (names) using `subobject` data."""
         assert obj is not None
         names = []
@@ -224,7 +222,7 @@ class Router:
                     return k
                 return f':{k}'
 
-    def _make_path_args(self, endpoint: EndpointEntry, path_items: list[Any], params: KwArgs) -> None:
+    def _make_path_args(self, endpoint: EndpointEntry, path_items: List[Any], params: KwArgs) -> None:
         """Add arguemnts to path (if PathArgs is used). Modify `path_items`."""
         sig = signature(endpoint)
         hints = get_type_hints(endpoint)
@@ -324,7 +322,7 @@ class Router:
 
     url_for = mkurl
 
-    def _get_object(self, path, *, strict=True) -> tuple[Callable, list[str]]:
+    def _get_object(self, path, *, strict=True) -> Tuple[Callable, List[str]]:
         """Return (object, args)."""
         if path.startswith('/'):
             path = path[1:]
@@ -434,7 +432,7 @@ class Router:
         assert 'self' not in params
         return self._convert_args(method, args, params, sig=sig)
 
-    def _apply_args(self, method: Callable, args: Args, kwargs: Params) -> tuple[Args, KwArgs]:
+    def _apply_args(self, method: Callable, args: Args, kwargs: Params) -> Tuple[Args, KwArgs]:
         """Apply arguments by method singature and returns (args, kwargs)."""
         ait = iter(args)
         args = []

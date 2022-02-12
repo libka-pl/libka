@@ -1,11 +1,10 @@
-from __future__ import annotations
-
 import sys
 import re
 from contextlib import contextmanager
 from typing import (
     overload,
     Union, Optional, Callable, Any,
+    Tuple,
 )
 from kodipl.utils import parse_url
 from kodipl.settings import Settings
@@ -94,11 +93,11 @@ class Addon:
         return self.resources.media
 
     @overload
-    def mkentry(self, endpoint: Union[Callable, str]) -> tuple[str, str]:
+    def mkentry(self, endpoint: Union[Callable, str]) -> Tuple[str, str]:
         ...
 
     @overload
-    def mkentry(self, title: str, endpoint: Callable) -> tuple[str, str]:
+    def mkentry(self, title: str, endpoint: Callable) -> Tuple[str, str]:
         ...
 
     def mkentry(self, title, endpoint=None):

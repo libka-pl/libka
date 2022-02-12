@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 KodiPL set of utils.
 
