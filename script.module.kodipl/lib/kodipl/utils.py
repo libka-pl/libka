@@ -16,6 +16,7 @@ import gzip
 from typing import (
     Optional,
     Union,
+    Set,
 )
 from pathlib import Path
 from .types import KwArgs
@@ -148,7 +149,7 @@ ParsedUrl.__str__ = lambda self: self.raw
 # ParsedUrl.replace = lambda self, **kwargs: self._replace(raw=self._to_str(), **kwargs) if True else None
 
 
-def parse_url(url: str, *, raw: Optional[set[str]] = None) -> ParsedUrl:
+def parse_url(url: str, *, raw: Optional[Set[str]] = None) -> ParsedUrl:
     """
     Split URL into link (scheme, host, port...) and encoded query and fragment.
 
