@@ -6,12 +6,12 @@ from typing import (
     Union, Optional, Callable, Any,
     Tuple,
 )
-from kodipl.utils import parse_url
-from kodipl.settings import Settings
-from kodipl.logs import log
-from kodipl.resources import Resources
-from kodipl.folder import AddonDirectory
-from kodipl.routing import Router, entry
+from .utils import parse_url
+from .settings import Settings
+from .logs import log
+from .resources import Resources
+from .folder import AddonDirectory
+from .routing import Router, subobject, entry
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
 
@@ -49,6 +49,8 @@ class Addon:
     ROOT_ENTRY = ('home', 'root')
 
     _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
+
+    settings = subobject()
 
     def __init__(self, argv=None, router=None):
         if argv is None:
