@@ -15,6 +15,10 @@ from .routing import (            # noqa E402
     call, entry, subobject,
     PathArg, RawArg,
 )
+from .lang import get_label_getter  # noqa E402
+
+
+L = get_label_getter()
 
 
 class SimpleAddon(Site, Plugin):
@@ -26,4 +30,4 @@ class SimplePlugin(Site, Plugin):
 
 
 __all__ = ['Addon', 'K19', 'K20', 'Plugin', 'SimpleAddon', 'SimplePlugin', 'Site',
-           'call', 'entry', 'subobject', 'PathArg', 'RawArg']
+           'call', 'entry', 'subobject', 'PathArg', 'RawArg', 'L']

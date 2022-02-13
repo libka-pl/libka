@@ -172,6 +172,10 @@ class Router:
                 if entry is not None:
                     if entry.title is not None:
                         title = entry.title
+                if not ismethod(endpoint) and not isfunction(endpoint):
+                    e = getattr(endpoint.__call__, '_kodipl_endpoint', None)
+                    if e is not None and e.title is not None:
+                        title = e.title
         url = self.mkurl(endpoint)
         if title is not None:
             if not isinstance(title, str):
@@ -259,6 +263,31 @@ class Router:
                     return str(params.pop(name))
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
 
+        def find_path(endpoint):
+            names, func = [], endpoint
+            if ismethod(endpoint):
+                names = self._find_object_path(endpoint.__self__)
+                names.append(endpoint.__name__)
+            elif isfunction(endpoint):
+                name = self._find_global(endpoint)
+                if not name:
+                    raise ValueError(f'Object {endpoint!r} not found')
+                names = [name]
+            else:  # object.__call__
+                func = endpoint.__call__
+                e = getattr(func, '_kodipl_endpoint', None)  # extra @entry on __call__
+                if e is not None and e.path is not None:
+                    return e.path
+                if endpoint is self.obj:
+                    names = [self._find_global(endpoint)]
+                else:
+                    names = self._find_object_path(endpoint)
+                if not names:
+                    raise ValueError(f'Object {endpoint!r} not found')
+            self._make_path_args(func, names, params)
+            path = '/'.join(map(str, names))
+            return f'/{path}'
+
         path = arguments = None
         raw = {}
         if isinstance(endpoint, Call):
@@ -282,26 +311,7 @@ class Router:
                 raise ValueError('URL to function %r is FORBIDEN, missing @entry' % endpoint)
             # find entry path
             else:
-                names, func = [], endpoint
-                if ismethod(endpoint):
-                    names = self._find_object_path(endpoint.__self__)
-                    names.append(endpoint.__name__)
-                elif isfunction(endpoint):
-                    name = self._find_global(endpoint)
-                    if not name:
-                        raise ValueError(f'Object {endpoint!r} not found')
-                    names = [name]
-                else:  # object.__call__
-                    func = endpoint.__call__
-                    if endpoint is self.obj:
-                        names = [self._find_global(endpoint)]
-                    else:
-                        names = self._find_object_path(endpoint)
-                    if not names:
-                        raise ValueError(f'Object {endpoint!r} not found')
-                self._make_path_args(func, names, params)
-                path = '/'.join(map(str, names))
-                path = f'/{path}'
+                path = find_path(endpoint)
         else:
             params = {i: v for i, v in enumerate(args)}
             params.update(kwargs)

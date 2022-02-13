@@ -2,6 +2,8 @@ from collections import namedtuple
 # from kodi_six import xbmcplugin
 
 from .logs import flog  # DEBUG,  TODO: remove it
+from .routing import entry
+from .lang import L
 
 
 Call = namedtuple('Call', 'method args')
@@ -129,6 +131,7 @@ class Settings(object):
     def set_float(self, key, value):
         return self.set(key, float(value))
 
+    @entry(title=L('Settings'))
     def __call__(self):
         """Call opens a settings dialog."""
         self._addon.xbmc_addon.openSettings()

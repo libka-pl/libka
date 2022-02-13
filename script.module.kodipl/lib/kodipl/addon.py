@@ -78,7 +78,10 @@ class Addon:
         #: Defined routes.
         self._routes = []
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
-        self.colors = {'gray': 'gray'}
+        self.colors = {
+            'gray': 'gray',
+            'grey': 'gray',
+        }
         #: Resources
         self.resources = Resources(self)
 
@@ -155,8 +158,7 @@ class Addon:
         text = self._RE_TITLE_COLOR.sub(get_color, text)
         return text
 
-    @entry(path='/sets')  # TODO: remove decorator, DEBUG only
-    def openSettings(self):
+    def open_settings(self):
         """Deprecated. Use Addon.settings()."""
         self.xbmc_addon.openSettings()
 
