@@ -13,7 +13,7 @@ class LabelGetter:
 
     def __init__(self, id=None):
         self.id = None
-        self.addon = Addon(self.id)
+        self.addon = Addon() if self.id is None else Addon(self.id)
 
     @overload
     def getter(self, id: int, string: str):
