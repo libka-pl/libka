@@ -34,9 +34,12 @@ Params = Dict[Union[str, int], Any]
 #: - raw - raw keywoard arguments, pickled
 Call = namedtuple('Call', 'method args kwargs raw', defaults=(None,))
 
-EndpointEntry = namedtuple('EndpointEntry', 'path title object')
+EndpointEntry = namedtuple('EndpointEntry', 'path label style title object')
 
 RouteEntry = namedtuple('RouteEntry', 'method entry regex types')
+
+#: Entry for dircetory, returned by mkentry().
+DirEntry = namedtuple('DirEntry', 'url label title style')
 
 
 class MISSING:
@@ -144,46 +147,57 @@ class Router:
             self.routes.append(RouteEntry(method, entry, re.compile(pattern), types))
 
     @overload
-    def mkentry(self, endpoint: Union[Callable, str]) -> Tuple[str, str]:
+    def mkentry(self, endpoint: Union[Callable, str], *,
+                title: str = None, style: Union[str, List[str]] = None) -> DirEntry:
         ...
 
     @overload
-    def mkentry(self, title: str, endpoint: Callable) -> Tuple[str, str]:
+    def mkentry(self, label: str, endpoint: Callable, *,
+                title: str = None, style: Union[str, List[str]] = None) -> DirEntry:
         ...
 
-    def mkentry(self, title, endpoint=None):
+    def mkentry(self, label, endpoint=None, *, title=None, style=None):
         """Helper. Returns (title, url) for given endpoint."""
         # flog('mkentry({title!r}, {endpoint!r})')  # DEBUG
         if endpoint is None:
-            if isinstance(title, str):
-                # folder(title, endpoint=title)
-                endpoint = title
+            if isinstance(label, str):
+                # folder(label, endpoint=title)
+                endpoint = label
             else:
-                # folder(endpoint, title=None)
-                title, endpoint = None, title
+                # folder(endpoint, label=None)
+                label, endpoint = None, label
+        fmt = None
         method = endpoint
         if isinstance(endpoint, Call):
             method = endpoint.method
         #    raise TypeError('mkentry endpoint must be Addon method or str not %r' % type(endpoint))
-        if title is None:
+        if label is None and title is not None:
+            label = title
+        if label is None:
             if callable(method):
-                title = method.__name__
-                entry = getattr(method, '_kodipl_endpoint', None)
-                if entry is not None:
-                    if entry.title is not None:
-                        title = entry.title
+                label = method.__name__
+                look_4_entries = [method]
                 if not ismethod(endpoint) and not isfunction(endpoint):
-                    e = getattr(endpoint.__call__, '_kodipl_endpoint', None)
-                    if e is not None and e.title is not None:
-                        title = e.title
+                    look_4_entries.append(endpoint.__call__)
+                for func in look_4_entries:
+                    entry = getattr(func, '_kodipl_endpoint', None)
+                    if entry is not None:
+                        if entry.label is not None:
+                            label = entry.label
+                        if entry.title is not None:
+                            title = entry.title
+                        if entry.style is not None:
+                            fmt = entry.style
         url = self.mkurl(endpoint)
-        if title is not None:
-            if not isinstance(title, str):
-                log.warning(f'WARNING!!! Incorrect title {title!r}')
-                title = str(title)
-            if self.addon is not None:
-                title = self.addon.translate_title(title)
-        return title, url
+        if label is not None and not isinstance(label, str):
+            log.warning(f'WARNING!!! Incorrect label {label!r}')
+            label = str(label)
+        if title is not None and not isinstance(title, str):
+            log.warning(f'WARNING!!! Incorrect title {title!r}')
+            title = str(title)
+        if format is not None:
+            fmt = style
+        return DirEntry(url, label, title, fmt)
 
     def _find_object_path(self, obj: Any) -> List[str]:
         """Find object path (names) using `subobject` data."""
@@ -623,9 +637,10 @@ class subobject:
 default_router = Router(standalone=True)
 
 
-def _entry(*, router, method=None, path=None, title=None, object=None):
+def _entry(*, router, method: callable = None, path: str = None, label: str = None, style: str = None,
+           title: str = None, object: object = None):
     """Decorator for addon URL entry."""
-    entry = EndpointEntry(path=path, title=title, object=object)
+    entry = EndpointEntry(path=path, label=label, style=style, title=title, object=object)
 
     def decorator(method):
         def make_call(*args, **kwargs):
@@ -642,5 +657,7 @@ def _entry(*, router, method=None, path=None, title=None, object=None):
     return decorator
 
 
-def entry(method=None, path=None, *, title=None, object=None):
-    return _entry(router=default_router, method=method, path=path, title=title, object=object)
+def entry(method: callable = None, path: str = None, *, label: str = None, style: str = None, title: str = None,
+          object: object = None):
+    return _entry(router=default_router, method=method, path=path, label=label, style=style,
+                  title=title, object=object)

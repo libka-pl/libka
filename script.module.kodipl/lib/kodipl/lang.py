@@ -12,7 +12,7 @@ class LabelGetter:
     """
 
     def __init__(self, id=None):
-        self.id = None
+        self.id = id
         self.addon = Addon() if self.id is None else Addon(self.id)
 
     @overload
@@ -58,9 +58,9 @@ L = get_label_getter('script.module.kodipl')
 
 #: some basic phrases to translate
 text = type('Text', (), {})
-text.ok = L('OK')
-text.yes = L('Yes')
-text.no = L('No')
-text.close = L('Close')
-text.cancel = L('Cancel')
-text.applay = L('Apply')
+text.ok = L(32201, 'OK')
+text.yes = L(32202, 'Yes')
+text.no = L(32203, 'No')
+text.close = L(32204, 'Close')
+text.cancel = L(32205, 'Cancel')
+text.applay = L(32206, 'Apply')

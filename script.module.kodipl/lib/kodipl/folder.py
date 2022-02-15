@@ -42,11 +42,11 @@ class ListItem(object):
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, url=None, folder=None, type=None):
+    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True):
         if isinstance(name, xbmcgui.ListItem):
             self._kodipl_item = name
         else:
-            self._kodipl_item = xbmcgui.ListItem(name)
+            self._kodipl_item = xbmcgui.ListItem(name, offscreen=offscreen)
         self._kodipl_url = url
         self._kodipl_folder = folder
         self.type = type
@@ -184,7 +184,7 @@ class AddonDirectory(object):
     Another str is spited by semicolon (;) to separate sort command.
 
     Single sort command is Kodi case insensitive name (without "SORT_METHOD_"). Then "title" -> SORT_METHOD_TITLE.
-    After bar (|) `lebel2Mask` can be applied. 
+    After bar (|) `label2Mask` can be applied.
 
     Note. If sort=None and `label2` is used, than item info `code` is overwritten, and mask is forced to "%P".
 
@@ -211,17 +211,19 @@ class AddonDirectory(object):
 
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
-    def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None, format=None,
-                 isort=None, cache=False):
+    def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None,
+                 format=None, style=None, isort=None, cache=False):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
+        self.router = self.addon.router
         self.item_list = []
         self.view = view
         self.type = type
         self.image = image
         self.fanart = fanart
         self.format = format
+        self.style = style
         self._label2_used = False
         self.sort_list = []
         self._initial_sort = sort
@@ -348,9 +350,12 @@ class AddonDirectory(object):
             self.sort_list.append(method)
         else:
             if isinstance(method, str):
-                method, sep, mask = method.partition('|')
-                if label2Mask is None and sep:
-                    label2Mask = mask
+                method, sep2, mask2 = method.partition('|')
+                mask1, sep1, mask2 = mask2.rpartition('|')
+                if labelMask is None and mask1:
+                    labelMask = mask1
+                if label2Mask is None and mask2:
+                    label2Mask = mask2
                 if method in ('', 'auto'):
                     # to process later
                     self.sort_list.append(Sort(method, labelMask, label2Mask))
@@ -361,7 +366,8 @@ class AddonDirectory(object):
             self.sort_list.append(Sort(method, labelMask, label2Mask))
 
     # @trace
-    def new(self, title, endpoint=None, *, folder=False, playable=False, descr=None, format=None,
+    def new(self, label, endpoint=None, *, folder=False, playable=False,
+            title=None, descr=None, format=None, style=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
             type=None, info=None, art=None, season=None, episode=None, label2=None):
         """
@@ -375,14 +381,18 @@ class AddonDirectory(object):
         ----------
         endpoint : method
             Addon method to call after user select.
-        title : str
-            Item title, if None endpoint name is taken.
+        label : str
+            Item title, if None endpoint name is taken. If still missing, title is taken.
         folder : bool
             True if item is a folder. Default is False.
         playable : bool
             True if item is playable, could be resolved. Default is False.
+        title : str
+            Item title, used in `info`
         descr : str
             Video description. Put into info labels.
+        style : str ot list[str]
+            Safe f-string style title format made by mkentry().
         format : str
             Safe f-string title format. Keywoard arguemts are `title` and `info` dict.
         image : str
@@ -415,8 +425,13 @@ class AddonDirectory(object):
         # log.error('>>> ENTER...')  # DEBUG
         if type is None:
             type = 'video' if self.type is None else self.type
-        title, url = self.addon.mkentry(title, endpoint)
-        item = ListItem(title, url=url, folder=folder, type=type)
+        if style is None:
+            style = self.style
+        entry = self.router.mkentry(label, endpoint, title=title, style=style)
+        label = entry.label
+        if label is None:
+            label = entry.title
+        item = ListItem(label, url=entry.url, folder=folder, type=type)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -436,7 +451,8 @@ class AddonDirectory(object):
             item.addContextMenuItems(menu)
         # info
         info = {} if info is None else dict(info)
-        info.setdefault('title', title)
+        if entry.title is not None:
+            info.setdefault('title', entry.title)
         if descr is not None:
             info['plot'] = descr
             info.setdefault('plotoutline', descr)
@@ -470,7 +486,11 @@ class AddonDirectory(object):
         if format is None:
             format = self.format
         if format is not None:
-            item.setLabel(safefmt(format, title=title, **info))
+            if entry.title is not None:
+                label.title = safefmt(format, entry.title, **info)
+            label = safefmt(format, label, **info)
+        label = self.addon.format_title(label, entry.style, n=len(self.item_list) + 1)
+        item.setLabel(label)
         # log.error('>>> EXIT...')  # DEBUG
         return item
 
@@ -483,18 +503,19 @@ class AddonDirectory(object):
         """Helper. Add item to xbmcplugin directory."""
         ifolder = False
         if isinstance(item, ListItem):
-            # our list item, revocer utl and folder flag
+            # our list item, recover url and folder flag
             item, url, ifolder = item._kodipl_item, item._kodipl_url, item._kodipl_folder
             if endpoint is not None:
-                _, url = self.addon.mkentry(item.getLabel(), endpoint)
+                url, *_ = self.router.mkentry(item.getLabel(), endpoint)
         elif isinstance(item, xbmcgui.ListItem):
             # pure kodi list item, create url from endpoint
-            _, url = self.addon.mkentry(item.getLabel(), endpoint)
+            url, *_ = self.router.mkentry(item.getLabel(), endpoint)
             if kodi_ver >= (20,):
                 ifolder = item.isFolder()
         else:
             # fallback, use "item" as title and create url from endpoint
-            title, url = self.addon.mkentry(item, endpoint)
+            title, url, style = self.router.mkentry(item, endpoint)
+            title = self.addon.format_title(title, style=style)
             item = xbmcgui.ListItem(title)
         if folder is None:
             folder = ifolder
@@ -602,5 +623,5 @@ class AddonContextMenu(list):
                     # just directly: handle
                     self.add(item)
 
-    def add(self, title, endpoint=None):
-        self.append(self.addon.mkentry(title, endpoint))
+    def add(self, title, endpoint=None, *, style=None):
+        self.append(self.addon.mkentry(title, endpoint, style=style))

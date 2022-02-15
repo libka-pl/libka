@@ -131,7 +131,7 @@ class Settings(object):
     def set_float(self, key, value):
         return self.set(key, float(value))
 
-    @entry(title=L('Settings'))
+    @entry(label=L(32301, 'Settings'))
     def __call__(self):
         """Call opens a settings dialog."""
         self._addon.xbmc_addon.openSettings()

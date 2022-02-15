@@ -8,6 +8,7 @@ from .logs import log as klog
 import xbmc
 import xbmcplugin
 import xbmcgui
+import xbmcaddon
 
 
 log_level_short_name = {
@@ -54,6 +55,10 @@ class ListItem(xbmcgui.ListItem):
         return self._kodipl_x_label
         # return super().getLabel()
 
+    def setLabel(self, label: str) -> None:
+        self._kodipl_x_label = label
+        return super().setLabel(label)
+
 
 @wraps(xbmcplugin.addDirectoryItem)
 def addDirectoryItem(handle: int,
@@ -76,9 +81,16 @@ def addDirectoryItems(handle: int,
     return xbmcplugin_addDirectoryItems(handle=handle, items=items, totalItems=totalItems)
 
 
+@wraps(xbmcaddon.Addon.getLocalizedString)
+def getLocalizedString(self, id: str):
+    s = xbmcaddon_Addon_getLocalizedString(id)
+    return s or f'#{id}'
+
+
 xbmcgui_ListItem = xbmcgui.ListItem
 xbmcplugin_addDirectoryItem = xbmcplugin.addDirectoryItem
 xbmcplugin_addDirectoryItems = xbmcplugin.addDirectoryItems
+xbmcaddon_Addon_getLocalizedString = xbmcaddon.Addon.getLocalizedString
 xbmc_log = xbmc.log
 
 
@@ -102,5 +114,7 @@ def xbmc_debug(console: bool = None, items: bool = None,
 
     if fake is True:
         xbmcgui.ListItem = ListItem
+        xbmcaddon.Addon.getLocalizedString = getLocalizedString
     elif fake is False:
-        xbmcgui.ListItem = xbmcgui.ListItem
+        xbmcgui.ListItem = xbmcgui_ListItem
+        xbmcaddon.Addon.getLocalizedString = xbmcaddon_Addon_getLocalizedString

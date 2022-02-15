@@ -1,17 +1,19 @@
 import sys
 import re
+from collections.abc import Sequence
 from contextlib import contextmanager
 from typing import (
     overload,
     Union, Optional, Callable, Any,
-    Tuple,
+    Tuple, List,
 )
 from .utils import parse_url
 from .settings import Settings
 from .logs import log
 from .resources import Resources
 from .folder import AddonDirectory
-from .routing import Router, subobject, entry
+from .routing import Router, subobject, entry, DirEntry
+from .format import SafeFormatter
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
 
@@ -84,6 +86,8 @@ class Addon:
         }
         #: Resources
         self.resources = Resources(self)
+        #: Defualt dafe text formatter
+        self.formatter = SafeFormatter(extended=True)
 
     def __repr__(self):
         return 'Addon(%r, %r)' % (self.id, str(self.req.url))
@@ -98,16 +102,16 @@ class Addon:
         return self.resources.media
 
     @overload
-    def mkentry(self, endpoint: Union[Callable, str]) -> Tuple[str, str]:
+    def mkentry(self, endpoint: Union[Callable, str], *, style: Union[str, List[str]] = None) -> DirEntry:
         ...
 
     @overload
-    def mkentry(self, title: str, endpoint: Callable) -> Tuple[str, str]:
+    def mkentry(self, title: str, endpoint: Callable, *, style: Union[str, List[str]] = None) -> DirEntry:
         ...
 
-    def mkentry(self, title, endpoint=None):
+    def mkentry(self, title, endpoint=None, *, style=None):
         """Helper. Returns (title, url) for given endpoint."""
-        return self.router.mkentry(title, endpoint)
+        return self.router.mkentry(title, endpoint, style=style)
 
     def mkurl(self, endpoint: Union[str, Callable], *args, **kwargs) -> str:
         """
@@ -117,7 +121,8 @@ class Addon:
 
     url_for = mkurl
 
-    def dispatch(self, *, root: Optional[Callable] = None, missing: Optional[Callable] = None) -> Any:
+    def dispatch(self, *, sync: bool = True,
+                 root: Optional[Callable] = None, missing: Optional[Callable] = None) -> Any:
         """
         Dispatcher. Call pointed method with request arguments.
         """
@@ -126,14 +131,16 @@ class Addon:
         if missing is None and callable(getattr(self, 'missing', None)):
             missing = self.missing
         # TODO: use async too
-        return self.router.sync_dispatch(self.req.url, root=root, missing=missing)
+        if sync:
+            return self.router.sync_dispatch(self.req.url, root=root, missing=missing)
+        return self.router.dispatch(self.req.url, root=root, missing=missing)
 
-    def run(self):
-        """Run plugin. Dispatch url."""
-        return self.dispatch()
+    def run(self, *, sync: bool = True):
+        """Run plugin. Dispatch url. Use sync=False to run asyncio."""
+        return self.dispatch(sync=sync)
 
     @contextmanager
-    def directory(self, *, safe: Optional[bool] = False, **kwargs):
+    def directory(self, *, safe: bool = False, **kwargs):
         kd = AddonDirectory(addon=self, **kwargs)
         try:
             yield kd
@@ -151,11 +158,20 @@ class Addon:
     def get_color(self, name):
         return self.colors.get(name, 'gray')
 
-    def translate_title(self, text):
+    def format_title(self, text, style, n=0):
         def get_color(m):
             return '[COLOR %s]' % self.get_color(m.group(1))
 
-        text = self._RE_TITLE_COLOR.sub(get_color, text)
+        if style is not None:
+            if not isinstance(style, str) and isinstance(style, Sequence):
+                style = '%s{}%s' % (''.join(f'[{a}]' for a in style),
+                                    ''.join(f'[/{a.split(None, 1)[0]}]' for a in reversed(style)))
+            text = self.formatter.format(style, text, title=text, text=text, n=n, colors=self.colors)
+        try:
+            text = self._RE_TITLE_COLOR.sub(get_color, text)
+        except TypeError:
+            log.error(f'Incorect label/title type {type(text)}')
+            raise
         return text
 
     def open_settings(self):
