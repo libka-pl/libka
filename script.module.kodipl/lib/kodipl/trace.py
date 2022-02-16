@@ -14,7 +14,7 @@ TRACE_CALL = 1
 TRACE_ALL = 2
 
 
-class TraceLogger(object):
+class TraceLogger:
     """
     Trace logger.
 

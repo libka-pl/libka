@@ -15,7 +15,7 @@ class MISSING:
     """Internal. Type to mark as missing."""
 
 
-class Settings(object):
+class Settings:
     """
     Proxy to Kodi (XMBC) settings.
 

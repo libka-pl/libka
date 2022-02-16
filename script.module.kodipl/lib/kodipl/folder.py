@@ -9,7 +9,7 @@ import xbmcgui
 import xbmcplugin
 
 
-class Cmp(object):
+class Cmp:
     """Helper. Object to compare values without TypeError exception."""
 
     __slots__ = ('value', )
@@ -37,7 +37,7 @@ class Cmp(object):
     #     return False
 
 
-class ListItem(object):
+class ListItem:
     """
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
@@ -146,7 +146,7 @@ Sort.auto = 'auto'
 Item = namedtuple('Item', 'item endpoint folder')
 
 
-class AddonDirectory(object):
+class AddonDirectory:
     """
     Tiny wrapper for plugin directory list.
 

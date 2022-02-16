@@ -2,7 +2,7 @@ from kodipl.path import Path
 import xbmcvfs
 
 
-class Resources(object):
+class Resources:
     """
     Access do Addon resources.
     """
@@ -45,7 +45,7 @@ class Resources(object):
             return exists
 
 
-class Media(object):
+class Media:
     """
     Access do Addon resources media.
     """

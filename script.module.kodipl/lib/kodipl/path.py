@@ -286,7 +286,7 @@ class Path(str):
 
 
 if __name__ == '__main__':
-    class P(object):
+    class P:
         def __fspath__(self):
             return 'xyz'
 

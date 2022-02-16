@@ -17,7 +17,7 @@ from kodipl.utils import encode_url, encode_params
 from kodipl.logs import log
 
 
-class UL3Response(object):
+class UL3Response:
     """urllib3 request response with API similar to requests response."""
 
     def __init__(self, resp):
@@ -42,7 +42,7 @@ class UL3Response(object):
         return self._json
 
 
-class Site(object):
+class Site:
     """
     Access to sbstract site.
 
