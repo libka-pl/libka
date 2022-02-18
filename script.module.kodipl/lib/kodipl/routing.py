@@ -27,12 +27,21 @@ from .types import (
 Params = Dict[Union[str, int], Any]
 
 
+def call_format(self, fmt):
+    """Format Call as plugin URL."""
+    if self.addon is None:
+        return str(self)
+    return self.addon.mkurl(self)
+
+
 #: Call descrtiption
 #: - method - function or method to call
 #: - args - positional arguments, queried
 #: - kwargs - keywoard arguments, queried
 #: - raw - raw keywoard arguments, pickled
 Call = namedtuple('Call', 'method args kwargs raw', defaults=(None,))
+Call.addon = None
+Call.__format__ = call_format
 
 EndpointEntry = namedtuple('EndpointEntry', 'path label style title object')
 
@@ -175,7 +184,7 @@ class Router:
             label = title
         if label is None:
             if callable(method):
-                label = method.__name__
+                label = getattr(method, '__name__', method.__class__.__name__)
                 look_4_entries = [method]
                 if not ismethod(endpoint) and not isfunction(endpoint):
                     look_4_entries.append(endpoint.__call__)
@@ -188,7 +197,10 @@ class Router:
                             title = entry.title
                         if entry.style is not None:
                             fmt = entry.style
-        url = self.mkurl(endpoint)
+        if isinstance(method, str):
+            url = method  # TODO: analyse this case, method name should be converted to URL or leave as is?
+        else:
+            url = self.mkurl(endpoint)
         if label is not None and not isinstance(label, str):
             log.warning(f'WARNING!!! Incorrect label {label!r}')
             label = str(label)

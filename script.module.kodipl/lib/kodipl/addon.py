@@ -12,7 +12,8 @@ from .settings import Settings
 from .logs import log
 from .resources import Resources
 from .folder import AddonDirectory
-from .routing import Router, subobject, entry, DirEntry
+from .routing import Router, subobject, DirEntry, Call
+from .commands import Commands
 from .format import SafeFormatter
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
@@ -67,14 +68,17 @@ class Addon:
         self.req = Request(argv[0] + argv[2], raw_keys=self.encoded_keys)
         #: Addon ID (unique name)
         self.id = self.req.url.host
+        #: XMBC (Kodi) Addon
+        self.xbmc_addon = XbmcAddon()
+        # Set default addon for Call formating.
+        Call.addon = self
         #: Router
         self.router = router
         if self.router is None:
             plugin_link = f'{self.req.url.scheme or "plugin"}://{self.id}'
             self.router = Router(plugin_link, obj=self, addon=self, standalone=False)
-        # XMBC (Kodi) Addon
-        # self.xbmc_addon = XbmcAddon(id=self.id)
-        self.xbmc_addon = XbmcAddon()
+        #: Kodi commands
+        self.cmd = Commands(addon=self, mkurl=self.router.mkurl)
         #: Addon settings.
         self.settings = Settings(self)
         #: Defined routes.
