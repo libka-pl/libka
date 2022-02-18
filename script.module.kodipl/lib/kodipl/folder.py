@@ -1,10 +1,10 @@
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
-from kodipl.utils import setdefaultx
-from kodipl.kodi import version_info as kodi_ver
-from kodipl.format import safefmt
-# from kodipl.logs import log
+from .utils import setdefaultx
+from .kodi import version_info as kodi_ver
+from .format import safefmt
+from .logs import log
 import xbmcgui
 import xbmcplugin
 
@@ -145,6 +145,9 @@ Sort.auto = 'auto'
 
 Item = namedtuple('Item', 'item endpoint folder')
 
+#: Resolved xbmcplugin.addDirectoryItems item.
+DirectoryItem = namedtuple('DirectoryItem', 'url listitem is_folder')
+
 
 class AddonDirectory:
     """
@@ -166,6 +169,16 @@ class AddonDirectory:
         Link to fanart image or relative path to addon image.
     format : str
         Safe f-string title format. Keyword arguments are `title` and `info` dict.
+    style : str or list of str
+        Safe f-string title style or list of styles like ['B', 'COLOR red'].
+    isort : str or bool
+        Internal list sort. See bellow.
+    cache : bool
+        Cache to disc on directory end.
+    update : bool
+        Update listing on directory end.
+    offscreen : bool
+        Default offcreen flag for directory items.
 
     Sort
     ----
@@ -212,7 +225,7 @@ class AddonDirectory:
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
     def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None,
-                 format=None, style=None, isort=None, cache=False):
+                 format=None, style=None, isort=None, cache=False, update=False, offscreen=True):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
@@ -239,6 +252,8 @@ class AddonDirectory:
         else:
             self.isort = []
         self.cache = cache
+        self.update = update
+        self.offscreen = offscreen
         handler = getattr(self.addon, 'on_directory_enter', None)
         if handler is not None:
             handler(self)
@@ -283,8 +298,8 @@ class AddonDirectory:
                                                           if isinstance(it.item, ListItem)
                                                           else it.item.getProperty)('SpecialSort') or '').lower(), 0))
         # add all items
-        for it in self.item_list:
-            self._add(*it)
+        xitems = [self._prepare(*it) for it in self.item_list]
+        xbmcplugin.addDirectoryItems(self.addon.handle, xitems, len(xitems))
         # add sort methods
         if self._initial_sort is True:
             pass  # I'm not sure – ignore at the moment
@@ -307,7 +322,8 @@ class AddonDirectory:
         handler = getattr(self.addon, 'on_directory_close', None)
         if handler is not None:
             handler(self)
-        xbmcplugin.endOfDirectory(self.addon.handle, success, self.cache)
+        xbmcplugin.endOfDirectory(self.addon.handle, succeeded=success,
+                                  updateListing=self.update, cacheToDisc=self.cache)
 
     def _find_auto_sort(self):
         """Helper. Sort method auto generator."""
@@ -366,8 +382,8 @@ class AddonDirectory:
             self.sort_list.append(Sort(method, labelMask, label2Mask))
 
     # @trace
-    def new(self, label, endpoint=None, *, folder=False, playable=False,
-            title=None, descr=None, format=None, style=None,
+    def new(self, _name, endpoint=None, *, offscreen=None, folder=False, playable=False,
+            label=None, title=None, descr=None, format=None, style=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
             type=None, info=None, art=None, season=None, episode=None, label2=None):
         """
@@ -381,12 +397,16 @@ class AddonDirectory:
         ----------
         endpoint : method
             Addon method to call after user select.
-        label : str
-            Item title, if None endpoint name is taken. If still missing, title is taken.
+        _name : str
+            Label name as positional argument.
+        offscreen : bool or None
+            True if item is created offscreen and GUI based locks should be avoided.
         folder : bool
             True if item is a folder. Default is False.
         playable : bool
             True if item is playable, could be resolved. Default is False.
+        label : str
+            Item title, if None endpoint name is taken. If still missing, title is taken.
         title : str
             Item title, used in `info`
         descr : str
@@ -423,15 +443,19 @@ class AddonDirectory:
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
         # log.error('>>> ENTER...')  # DEBUG
+        if offscreen is None:
+            offscreen = self.offscreen
         if type is None:
             type = 'video' if self.type is None else self.type
         if style is None:
             style = self.style
-        entry = self.router.mkentry(label, endpoint, title=title, style=style)
+        if label is not None and endpoint is None:
+            _name, endpoint = label, _name
+        entry = self.router.mkentry(_name, endpoint, title=title, style=style)
         label = entry.label
         if label is None:
             label = entry.title
-        item = ListItem(label, url=entry.url, folder=folder, type=type)
+        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -448,6 +472,8 @@ class AddonDirectory:
         if menu is not None:
             if not isinstance(menu, AddonContextMenu):
                 menu = AddonContextMenu(menu, addon=self.addon)
+            log.info(f'MENU:1: {menu!r}')
+            log.info(f'MENU:2: {list(menu)!r}')
             item.addContextMenuItems(menu)
         # info
         info = {} if info is None else dict(info)
@@ -499,7 +525,7 @@ class AddonDirectory:
             self.item_list.append(Item(item, endpoint, folder))
         return item
 
-    def _add(self, item, endpoint=None, folder=None):
+    def _prepare(self, item, endpoint=None, folder=None):
         """Helper. Add item to xbmcplugin directory."""
         ifolder = False
         if isinstance(item, ListItem):
@@ -519,8 +545,11 @@ class AddonDirectory:
             item = xbmcgui.ListItem(title)
         if folder is None:
             folder = ifolder
-        xbmcplugin.addDirectoryItem(handle=self.addon.handle, url=url, listitem=item, isFolder=folder)
-        return item
+        return DirectoryItem(url, item, folder)
+
+    def _add(self, item, endpoint=None, folder=None):
+        """Helper. Add item to xbmcplugin directory."""
+        return xbmcplugin.addDirectoryItem(*self._prepare(item, endpoint, folder=folder))
 
     def item(self, *args, **kwargs):
         """
@@ -610,9 +639,7 @@ class AddonContextMenu(list):
     See: xbmcgui.ListItem.
     """
 
-    def __init__(self, menu=None, addon=None):
-        if addon is None:
-            addon = globals()['addon']
+    def __init__(self, menu=None, *, addon):
         self.addon = addon
         if menu is not None:
             for item in menu:
@@ -623,5 +650,10 @@ class AddonContextMenu(list):
                     # just directly: handle
                     self.add(item)
 
-    def add(self, title, endpoint=None, *, style=None):
-        self.append(self.addon.mkentry(title, endpoint, style=style))
+    def add(self, title, endpoint=None, *, format=None, style=None):
+        entry = self.addon.mkentry(title, endpoint, style=style)
+        label = entry.label
+        if label is None:
+            label = entry.title
+        label = self.addon.format_title(label, entry.style, n=len(self) + 1)
+        self.append((label, entry.url))
