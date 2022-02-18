@@ -1,9 +1,8 @@
 import sys
 import functools
 from inspect import currentframe
-from kodi_six import xbmc
-# from .info import addon_name
-from kodipl.logs import log
+import xbmc
+from .logs import log
 
 addon_name = 'XXX'
 

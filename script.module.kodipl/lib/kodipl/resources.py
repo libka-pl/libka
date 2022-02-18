@@ -1,5 +1,5 @@
 from kodipl.path import Path
-import xbmcvfs
+from xbmcvfs import translatePath
 
 
 class Resources:
@@ -7,9 +7,7 @@ class Resources:
     Access do Addon resources.
     """
 
-    def __init__(self, addon=None):
-        if addon is None:
-            addon = globals()['addon']
+    def __init__(self, addon):
         self.addon = addon
         self._base = None
         self._media = None
@@ -19,7 +17,7 @@ class Resources:
     def base(self):
         """Path to addon folder."""
         if self._base is None:
-            self._base = Path(xbmcvfs.translatePath(self.addon.info('path')))
+            self._base = Path(translatePath(self.addon.info('path')))
         return self._base
 
     @property

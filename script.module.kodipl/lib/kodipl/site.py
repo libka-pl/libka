@@ -44,11 +44,16 @@ class UL3Response:
 
 class Site:
     """
-    Access to sbstract site.
+    Access to sbstract site mixin.
 
     Site(base=None)
 
-    - base - base URL
+    Parameters
+    ----------
+    base: str
+        Base site URL.
+    cookiefile: str or Path
+        Path to cookiejar file.
 
     Can be used as variable.
     >>> class MyAddon(Addon):

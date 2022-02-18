@@ -5,6 +5,9 @@ Some string and format tools.
 import re
 import string
 from inspect import isclass, currentframe
+from typing import (
+    Union,
+)
 try:
     from simpleeval import InvalidExpression, EvalWithCompoundTypes, SimpleEval, simple_eval
 # except ModuleNotFoundError:
@@ -297,6 +300,31 @@ def sectfmt(fmt, *args, **kwargs):
     Use `%[`, `%]` and `%%` to get `[`, ']' and '%'. Instead of `%` backslash can be uesd.
     """
     return vsectfmt(fmt, args, kwargs, allow_empty=False)
+
+
+def find_re(pattern: Union[str, regex], text: str, default: str = '', flags: int = 0, many: bool = True) -> str:
+    """
+    Search regex pattern, return sub-expr(s) or whole found text or default.
+
+    Pattern can be text (str or unicode) or compiled regex.
+
+    When no sub-expr defined returns whole matched text (whole pattern).
+    When one sub-expr defined returns sub-expr.
+    When many sub-exprs defined returns all sub-exprs if `many` is True else first sub-expr.
+
+    Ofcourse unnamed sub-expr (?:...) doesn't matter.
+    """
+    if not isinstance(pattern, regex):
+        pattern = re.compile(pattern, flags)
+    rx = pattern.search(text)
+    if not rx:
+        return default
+    groups = rx.groups()
+    if not groups:
+        rx.group(0)
+    if len(groups) == 1 or not many:
+        return groups[0]
+    return groups
 
 
 if __name__ == '__main__':

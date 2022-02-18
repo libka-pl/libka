@@ -34,7 +34,6 @@ class Settings:
 
     def __init__(self, addon):
         self._addon = addon
-        self.__name__ = 'settings'
         try:
             # since Kodi 20
             self._xbmc = self._addon.xbmc_addon.getSettings()
@@ -44,7 +43,6 @@ class Settings:
 
     def __repr__(self):
         return 'Settings()'
-        # return 'Settings(Addon(%r))' % self._addon.id
 
     def _get(self, key, default=None, type='string'):
         """Get setting."""
@@ -73,7 +71,6 @@ class Settings:
             return self._data[key]
         except KeyError:
             pass
-        # value = xbmcplugin.getSetting(self._addon.handle, key)
         value = self._addon.xbmc_addon.getSetting(key)
         self._data[key] = value
         return value
@@ -92,7 +89,6 @@ class Settings:
         elif not isinstance(value, str):
             value = str(value)
         self._data[key] = value
-        # return xbmcplugin.setSetting(self._addon.handle, key, value)
         flog('   ----> {value!r}')
         return self._addon.xbmc_addon.setSetting(key, value)
 
