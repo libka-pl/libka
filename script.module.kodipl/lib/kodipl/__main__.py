@@ -6,7 +6,6 @@ import sys
 from .debug import xbmc_debug
 from . import Plugin, call, PathArg
 from .lang import text
-from .routing import Call
 
 xbmc_debug(fake=True, console=True, items=True)
 

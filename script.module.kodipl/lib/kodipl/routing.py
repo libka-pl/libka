@@ -1,3 +1,4 @@
+import sys
 import re
 import asyncio
 from collections import namedtuple
@@ -599,6 +600,9 @@ class Router:
             # Loop is working.
             # NOTE: Do not execute, just return coroutine instead, should be awaited.
             return self.async_dispatch(url, root=root, missing=missing)
+        # Fix py 3.8 win bug, see https://bugs.python.org/issue40072
+        if sys.platform == 'win32' and sys.version_info >= (3, 8):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         # Execute dispatch in new loop.
         return asyncio.run(self.async_dispatch(url, root=root, missing=missing))
 
