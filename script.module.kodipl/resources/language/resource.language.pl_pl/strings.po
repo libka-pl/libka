@@ -40,3 +40,27 @@ msgstr "Zatwierdź"
 msgctxt "#32301"
 msgid "Settings"
 msgstr "Opcje"
+
+msgctxt "#32302"
+msgid "Search"
+msgstr "Szukaj"
+
+msgctxt "#32303"
+msgid "New search"
+msgstr "Nowe wyszukiwanie"
+
+msgctxt "#32304"
+msgid "Search options"
+msgstr "Opcje wyszukiwania"
+
+msgctxt "#32305"
+msgid "Remove"
+msgstr "Usuń pozycję"
+
+msgctxt "#32306"
+msgid "Clear all"
+msgstr "Usuń całą listę"
+
+msgctxt "#32307"
+msgid "Search: enter query"
+msgstr "Szukaj: wpisz frazę"

@@ -9,8 +9,10 @@ from typing import (
 )
 from .utils import parse_url
 from .settings import Settings
+from .search import Search
 from .logs import log
 from .resources import Resources
+from .storage import AddonUserData
 from .folder import AddonDirectory
 from .routing import Router, subobject, DirEntry, Call
 from .commands import Commands
@@ -54,6 +56,7 @@ class Addon:
     _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
 
     settings = subobject()
+    search = subobject()
 
     def __init__(self, argv=None, router=None):
         if argv is None:
@@ -81,6 +84,10 @@ class Addon:
         self.cmd = Commands(addon=self, mkurl=self.router.mkurl)
         #: Addon settings.
         self.settings = Settings(self)
+        #: Addon default search.
+        self.search = Search(self)
+        #: Default userdata
+        self.user_data = AddonUserData(addon=self)
         #: Defined routes.
         self._routes = []
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"

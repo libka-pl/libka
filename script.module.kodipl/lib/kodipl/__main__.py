@@ -6,6 +6,7 @@ import sys
 from .debug import xbmc_debug
 from . import Plugin, call, PathArg
 from .lang import text
+from .routing import Call
 
 xbmc_debug(fake=True, console=True, items=True)
 
@@ -14,6 +15,14 @@ class MyPlugin(Plugin):
 
     def __init__(self):
         super().__init__()
+        # self.s1 = Search(addon=self, asdasdasdaasdasdasdasd)
+        # self.s2 = Search(addon=self)
+        # self.search.set_option(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
+        # self.search.set_xml(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
+
+        print(f'>>>{call(self.foo, 22)}<<<')
+        print(self.cmd.RunPlugin(self.foo, 22))
+        print(self.cmd.Container.Update(call(self.foo, 22), 'replace'))
 
     def home(self):
         with self.directory(type='music') as kd:
@@ -21,6 +30,7 @@ class MyPlugin(Plugin):
             kd.menu('Aaa', call(self.foo, 42))
             kd.menu('Bbb', call(self.bar, 42))
             kd.item(text.close, call(self.bar, 42))
+            kd.menu(self.search)
 
     def foo(self, a):
         print(f'foo(a={a!r})')
@@ -28,6 +38,19 @@ class MyPlugin(Plugin):
     def bar(self, a: PathArg[int]):
         print(f'bar(a={a!r})')
 
+    # @search
+    # def find_best_movies(self, name):
+    #     with self.directory() is kd:
+    #         for item in [ {}, {} ]:
+    #             kd.play(item)
+
+    # # @cache
+    # @search
+    # def find_best_series(self, name, options):
+    #     return [ {}, {} ]
+
+
+# VideoInfo = namedtuple('VideoInfo', 'title genre duration year')
 
 del sys.argv[0]
 MyPlugin().run()
