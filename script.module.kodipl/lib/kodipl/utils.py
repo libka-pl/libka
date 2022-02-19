@@ -1,7 +1,7 @@
 """
 KodiPL set of utils.
 
-Author: rysson
+Author: rysson + stackoverflow
 """
 
 import re
@@ -11,11 +11,12 @@ import pickle
 from base64 import b64encode, b64decode
 from urllib.parse import quote_plus
 from urllib.parse import parse_qsl
-from collections.abc import Mapping
+from collections.abc import Mapping, Callable
+from functools import partial
+import inspect
 import gzip
 from typing import (
-    Optional,
-    Union,
+    Optional, Union, Type,
     Set,
 )
 from pathlib import Path
@@ -31,7 +32,7 @@ class adict(dict):
 
     Exmaple
     -------
-    >>> dct = adict(foo='bar')
+    >>> dct = adict(foo='baz')
     >>> dct.foo is dct['foo']
     >>> dct.bar is None
     >>> dct['bar']
@@ -278,3 +279,23 @@ def setdefaultx(dct, key, *values):
             dct.setdefault(key, value)
             break
     return dct
+
+
+# Author: Yoel
+# See https://stackoverflow.com/a/25959545/9935708
+def get_class_that_defined_method(meth: Callable) -> Type:
+    """Returns class where method is defined or None."""
+    if isinstance(meth, partial):
+        return get_class_that_defined_method(meth.func)
+    if inspect.ismethod(meth):
+        for cls in inspect.getmro(meth.__self__.__class__):
+            if meth.__name__ in cls.__dict__:
+                return cls
+        meth = meth.__func__  # fallback to __qualname__ parsing
+    if inspect.isfunction(meth):
+        cls = getattr(inspect.getmodule(meth),
+                      meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0],
+                      None)
+        if isinstance(cls, type):
+            return cls
+    return getattr(meth, '__objclass__', None)  # handle special descriptor objects

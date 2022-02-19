@@ -653,7 +653,7 @@ class subobject:
 default_router = Router(standalone=True)
 
 
-def _entry(*, router, method: callable = None, path: str = None, label: str = None, style: str = None,
+def _entry(*, router, method: Callable = None, path: str = None, label: str = None, style: str = None,
            title: str = None, object: object = None):
     """Decorator for addon URL entry."""
     entry = EndpointEntry(path=path, label=label, style=style, title=title, object=object)
@@ -673,7 +673,7 @@ def _entry(*, router, method: callable = None, path: str = None, label: str = No
     return decorator
 
 
-def entry(method: callable = None, path: str = None, *, label: str = None, style: str = None, title: str = None,
+def entry(method: Callable = None, path: str = None, *, label: str = None, style: str = None, title: str = None,
           object: object = None):
     return _entry(router=default_router, method=method, path=path, label=label, style=style,
                   title=title, object=object)

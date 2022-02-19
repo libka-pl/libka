@@ -16,6 +16,7 @@ from .routing import (            # noqa E402
     PathArg, RawArg,
 )
 from .lang import get_label_getter  # noqa E402
+from .search import search          # noqa E402
 
 
 L = get_label_getter()

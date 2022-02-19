@@ -4,7 +4,7 @@
 
 import sys
 from .debug import xbmc_debug
-from . import Plugin, call, PathArg
+from . import Plugin, call, PathArg, search
 from .lang import text
 
 xbmc_debug(fake=True, console=True, items=True)
@@ -37,19 +37,19 @@ class MyPlugin(Plugin):
     def bar(self, a: PathArg[int]):
         print(f'bar(a={a!r})')
 
-    # @search
-    # def find_best_movies(self, name):
-    #     with self.directory() is kd:
-    #         for item in [ {}, {} ]:
-    #             kd.play(item)
+    @search.folder
+    def find_best_movies(self, name, opt):
+        with self.directory() as kd:
+            kd.item(f'Result {name}: 22', call(self.foo, 22))
+            kd.item(f'Result {name}: 42', call(self.foo, 42))
 
     # # @cache
-    # @search
+    # @search.data
     # def find_best_series(self, name, options):
     #     return [ {}, {} ]
 
 
 # VideoInfo = namedtuple('VideoInfo', 'title genre duration year')
 
-del sys.argv[0]
+del sys.argv[0]  # for kodi plugin call simulate
 MyPlugin().run()

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import (
     overload,
     Union, Optional, Callable, Any,
-    Tuple, List,
+    List,
 )
 from .utils import parse_url
 from .settings import Settings

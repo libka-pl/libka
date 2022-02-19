@@ -1,14 +1,16 @@
 
 from typing import (
-    Union, Optional,
+    Union, Optional, Callable, Any,
     List, Dict,
 )
+from inspect import signature
 from collections import namedtuple
 from datetime import datetime
 from .routing import entry, call
 from .lang import L
 from .logs import log
 from .storage import AddonUserData
+from .purpose import purpose_decorator, find_purpose
 import xbmcgui
 
 
@@ -30,7 +32,8 @@ class Search:
     """
 
     def __init__(self, addon, site=None, *, name: str = None, size: int = 50,
-                 style: Optional[Union[str, List[str]]] = None):
+                 style: Optional[Union[str, List[str]]] = None,
+                 method: Callable = None):
         if site is None:
             site = addon
         self.addon = addon
@@ -42,6 +45,7 @@ class Search:
         self.style = style
         if self.style is None:
             self.style = ['B']
+        self.method = method
 
     def _json_search_name(self):
         """Key-path in JSON search file."""
@@ -63,7 +67,7 @@ class Search:
         self.udata.set(self._json_search_name(), [d._asdict() for d in self._history])
         self.udata.save(indent=2)
 
-    def _add(self, query: str, options: Dict[str, str] = None) -> None:
+    def _add(self, query: str, options: Dict[str, Any] = None) -> None:
         history = self.history
         now = datetime.now().replace(microsecond=0)
         now = str(now.astimezone())  # TODO: handle datetime directly
@@ -89,20 +93,36 @@ class Search:
                     (L(32306, 'Clear all'), self.addon.cmd.RunPlugin(self.clear)),
                 ))
 
-    def it(self, query: str, options: Dict[str, str] = None) -> None:
+    def _call(self, method: Callable, query: str, options: Dict[str, Any] = None) -> Any:
+        """Call custom search query folder."""
+        sig = signature(method)
+        if sum(1 for p in sig.parameters.values() if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)) > 1:
+            return method(query, options)
+        elif len(sig.parameters) > 1 and 'options' in sig.parameters:
+            return method(query, options=options)
+        else:
+            return method(query)
+
+    def it(self, query: str, options: Dict[str, Any] = None) -> None:
         """
         Search query and list found items.
         """
-        # self.site.yield_query_list(query)
-        # XXX --- XXX --- XXX  (DEBUG)
-        data = [
-            {'title': f'Aaa of {query}', },
-            {'title': f'Bbb of {query}', },
-            {'title': f'Ccc of {query}', },
-        ]
-        with self.addon.directory() as kd:
-            for index, item in enumerate(data):
-                kd.item(self.addon.settings, title=item['title'])
+        method = self.method
+        if method is None:
+            method = find_purpose(self.site, 'search_folder')
+        if method is not None:
+            self._call(method, query, options)
+            return
+
+        # TODO: remove
+        method = find_purpose(self.site, 'search_data')
+        if method is not None:
+            data = self._call(method, query, options)
+            with self.addon.directory() as kd:
+                for index, item in enumerate(data):
+                    kd.item(self.addon.settings, title=item['title'])
+            return
+        log.error(f'No search method for search({self.name or ""}).')
 
     def new(self, query: Optional[str] = None) -> None:
         """
@@ -140,3 +160,15 @@ class Search:
         """
         self.udata.remove(self._json_search_name())
         self.refresh()
+
+
+class search:
+    """Decorators for searches."""
+
+    @staticmethod
+    def folder(method: Callable = None):
+        return purpose_decorator(name='search_folder', method=method)
+
+    @staticmethod
+    def data(method: Callable = None):
+        return purpose_decorator(name='search_data', method=method)

@@ -472,8 +472,6 @@ class AddonDirectory:
         if menu is not None:
             if not isinstance(menu, AddonContextMenu):
                 menu = AddonContextMenu(menu, addon=self.addon)
-            log.info(f'MENU:1: {menu!r}')
-            log.info(f'MENU:2: {list(menu)!r}')
             item.addContextMenuItems(menu)
         # info
         info = {} if info is None else dict(info)

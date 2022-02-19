@@ -83,7 +83,7 @@ def addDirectoryItems(handle: int,
 
 @wraps(xbmcaddon.Addon.getLocalizedString)
 def getLocalizedString(self, id: str):
-    s = xbmcaddon_Addon_getLocalizedString(id)
+    s = xbmcaddon_Addon_getLocalizedString(self, id)
     return s or f'#{id}'
 
 
