@@ -9,7 +9,8 @@
 	<extension point="xbmc.python.module" library="lib">
 	</extension>
 	<extension point="xbmc.addon.metadata">
-		<summary lang="en_GB">Helper library for Kodi Addons</summary>
+		<summary lang="en_GB">Helper library for Kodi-PL Addons</summary>
+		<summary lang="pl_PL">Biblioteka dla dodatków Kodi-PL</summary>
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/kodi-pl/kodipl/script.module.kodipl</source>
