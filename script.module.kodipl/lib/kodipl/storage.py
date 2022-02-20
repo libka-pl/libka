@@ -62,7 +62,9 @@ class AddonUserData:
         if self._data is None:
             return
         try:
-            with open(self.path, 'w') as f:
+            path = self.path.resolve()
+            path.parent.mkdirs(parents=True, exist_ok=True)
+            with open(path, 'w') as f:
                 self._data = json.dump(self._data, f, indent=indent)
         except IOError as exc:
             log.error(f'AddonUserData({self.path}): save failed: {exc!r}')
