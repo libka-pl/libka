@@ -9,7 +9,7 @@ from datetime import datetime
 from .routing import entry, call
 from .lang import L
 from .logs import log
-from .storage import AddonUserData
+from .storage import Storage
 from .purpose import purpose_decorator, find_purpose
 import xbmcgui
 
@@ -39,7 +39,7 @@ class Search:
         self.addon = addon
         self.site = site
         self.name = name
-        self.udata = AddonUserData('search.json', addon=addon)
+        self.udata = Storage('search.json', addon=addon, pretty=True)
         self._history = None
         self.size = size
         self.style = style
@@ -65,7 +65,7 @@ class Search:
         """Save history entries."""
         self._history = list(entries[:self.size])
         self.udata.set(self._json_search_name(), [d._asdict() for d in self._history])
-        self.udata.save(indent=2)
+        self.udata.save()
 
     def _add(self, query: str, options: Dict[str, Any] = None) -> None:
         history = self.history

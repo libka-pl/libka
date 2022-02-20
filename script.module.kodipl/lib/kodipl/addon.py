@@ -12,7 +12,7 @@ from .settings import Settings
 from .search import Search
 from .logs import log
 from .resources import Resources
-from .storage import AddonUserData
+from .storage import Storage
 from .folder import AddonDirectory
 from .routing import Router, subobject, DirEntry, Call
 from .commands import Commands
@@ -87,7 +87,7 @@ class Addon:
         #: Addon default search.
         self.search = Search(self)
         #: Default userdata
-        self.user_data = AddonUserData(addon=self)
+        self.user_data = Storage(addon=self)
         #: Defined routes.
         self._routes = []
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"

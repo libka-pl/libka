@@ -1,11 +1,12 @@
-import json
 from typing import (
     Union, Any,
     List,
 )
+from inspect import isclass
 from xbmcvfs import translatePath
 from .path import Path
 from .logs import log
+from .serializer.json import Json
 
 
 class NoDefault:
@@ -14,65 +15,79 @@ class NoDefault:
 
 class Storage:
     """
-    Simple ata storage in .kodi/user_data/...
+    Simple data storage in .kodi/user_data/...
     """
 
-    def __init__(self, path=None, * addon):
+    def __init__(self, path=None, *, addon, default: Any = None, sync: bool = False, pretty: bool = True,
+                 serializer=None):
+        if serializer is None:
+            serializer = Json
+        if isclass(serializer):
+            serializer = serializer()
         self.addon = addon
-        self.path = None if path is None else Path(path)
+        self.serializer = serializer
+        self._base = None
+        if path is None:
+            path = 'data{suffix}'
+        if isinstance(path, str):
+            path = path.format(suffix=serializer.SUFFIX)
+        self._path = Path(path)
+        self.default = default
+        self.sync = sync
+        self._dirty = False
+        self._data = None
 
     @property
     def base(self):
         """Path to addon folder."""
         if self._base is None:
-            self._base = Path(translatePath(self.addon.info('profile')))
-        return self._base
-
-
-class AddonUserData:
-    """Simple userdata JSON file."""
-
-    def __init__(self, path=None, default: Any = None, *, addon):
-        self.path = Path('data.json' if path is None else path)
-        self.addon = addon
-        if not self.path.is_absolute():
-            if addon is None:
-                from xbmcaddon import Addon  # fallbavk
+            if self.addon is None:
+                from xbmcaddon import Addon  # fallback
                 base = Addon().getAddonInfo('profile')
             else:
                 base = self.addon.info('profile')
-            self.path = Path(translatePath(base)) / self.path
-        self.default = default
-        self.dirty = False
-        self._data = None
+            self._base = Path(translatePath(base))
+        return self._base
+
+    @property
+    def path(self):
+        """Starage path file."""
+        if not self._path.is_absolute():
+            self._path = self.base / self._path
+        return self._path
 
     @property
     def data(self):
         """Lazy load and get data."""
         if self._data is None:
             try:
-                with open(self.path, 'r') as f:
-                    self._data = json.load(f)
+                self._data = self.serializer.load(self.path)
             except IOError as exc:
-                log.warning(f'AddonUserData({self.path}): load failed: {exc!r}')
+                log.warning(f'Storage({self.path}): load failed: {exc!r}')
         return self._data
 
-    def do_save(self, indent: int = None):
+    @property
+    def dirty(self):
+        """Read dirty flag."""
+        return self._dirty
+
+    def do_save(self):
         """Save data."""
         if self._data is None:
             return
         try:
             path = self.path.resolve()
-            path.parent.mkdirs(parents=True, exist_ok=True)
-            with open(path, 'w') as f:
-                self._data = json.dump(self._data, f, indent=indent)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = path.with_stem(f'.new.{path.stem}')
+            self._data = self.serializer.save(self._data, tmp_path)
+            tmp_path.rename(path)
         except IOError as exc:
-            log.error(f'AddonUserData({self.path}): save failed: {exc!r}')
+            log.error(f'Storage({self.path}): save failed: {exc!r}')
 
-    def save(self, indent: int = None):
+    def save(self):
         """Save file if data changed."""
-        if self.dirty:
-            self.do_save(indent=indent)
+        if self._dirty:
+            self.do_save()
 
     def get(self, key: Union[str, List[str]], default: Any = NoDefault):
         """Get dot-separated key value."""
@@ -94,7 +109,7 @@ class AddonUserData:
         """Set dot-separated key value. Force dicts in path."""
         if not key:
             return
-        self.dirty = True
+        self._dirty = True
         if isinstance(key, str):
             key = key.split('.')
         if not isinstance(self.data, dict):
@@ -106,6 +121,8 @@ class AddonUserData:
                 data[item] = {}
             data = sub
         data[key[-1]] = value
+        if self.sync:
+            self.save()
 
     def remove(self, key: Union[str, List[str]]):
         """Remove dot-separated key value."""
@@ -122,7 +139,9 @@ class AddonUserData:
                 return
             data = sub
         if key[-1] in data:
-            self.dirty = True
+            self._dirty = True
             del data[key[-1]]
+        if self.sync:
+            self.save()
 
     delete = remove

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.module.kodipl" name="Kodi-PL Module" version="0.0.3" provider-name="rysson">
+<addon id="script.module.kodipl" name="Kodi-PL Module" version="0.0.4" provider-name="rysson">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0" />
 		<import addon="script.module.requests" />
@@ -14,7 +14,8 @@
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/kodi-pl/kodipl/script.module.kodipl</source>
-		<news>v0.0.3
+		<news>v0.0.4
+[add] storage
 [new] settings, search, routing module
 [fix] routes, menu, folder etc.
 v0.0.2
