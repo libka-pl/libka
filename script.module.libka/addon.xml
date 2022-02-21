@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.module.kodipl" name="Kodi-PL Module" version="0.0.4" provider-name="rysson">
+<addon id="script.module.libka" name="Kodi-PL Library Module" version="0.0.5" provider-name="kodi-pl">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0" />
 		<import addon="script.module.requests" />
 		<import addon="script.module.urllib3" />
 		<!-- <import addon="script.module.inputstreamhelper" version="0.3.3"/> -->
 	</requires>
-	<extension point="xbmc.python.module" library="lib">
-	</extension>
+	<extension point="xbmc.python.module" library="lib" />
 	<extension point="xbmc.addon.metadata">
 		<summary lang="en_GB">Helper library for Kodi-PL Addons</summary>
 		<summary lang="pl_PL">Biblioteka dla dodatków Kodi-PL</summary>
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/kodi-pl/kodipl/script.module.kodipl</source>
-		<news>v0.0.4
+		<news>v0.0.5
+[new] change ID to script.module.libka
+v0.0.4
 [add] storage
 [new] settings, search, routing module
 [fix] routes, menu, folder etc.

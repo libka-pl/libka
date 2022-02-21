@@ -13,8 +13,8 @@ except ImportError:
 from certifi import where
 from collections.abc import Mapping
 from http.cookiejar import LWPCookieJar
-from kodipl.utils import encode_url, encode_params
-from kodipl.logs import log
+from .utils import encode_url, encode_params
+from .logs import log
 
 
 class UL3Response:

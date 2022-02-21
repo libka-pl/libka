@@ -1,4 +1,4 @@
-from kodipl.path import Path
+from .path import Path
 from xbmcvfs import translatePath
 
 

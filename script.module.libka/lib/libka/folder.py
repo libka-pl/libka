@@ -44,22 +44,22 @@ class ListItem:
 
     def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True):
         if isinstance(name, xbmcgui.ListItem):
-            self._kodipl_item = name
+            self._libka_item = name
         else:
-            self._kodipl_item = xbmcgui.ListItem(name, offscreen=offscreen)
-        self._kodipl_url = url
-        self._kodipl_folder = folder
+            self._libka_item = xbmcgui.ListItem(name, offscreen=offscreen)
+        self._libka_url = url
+        self._libka_folder = folder
         self.type = type
         self._info = {}
         self._props = {}
         if self.type is not None:
-            self._kodipl_item.setInfo(self.type, self._info)
+            self._libka_item.setInfo(self.type, self._info)
 
     def __repr__(self):
-        return 'ListItem(%r)' % self._kodipl_item
+        return 'ListItem(%r)' % self._libka_item
 
     def __getattr__(self, key):
-        return getattr(self._kodipl_item, key)
+        return getattr(self._libka_item, key)
 
     @property
     def mode(self):
@@ -71,7 +71,7 @@ class ListItem:
         folder = value in ('folder', 'menu')
         self.setProperty('isPlayable', 'true' if playable else 'false')
         self.setIsFolder(folder)
-        self._kodipl_folder = folder
+        self._libka_folder = folder
 
     @property
     def label(self):
@@ -102,7 +102,7 @@ class ListItem:
             self._info.update(info)
         else:
             self._info[info] = value
-        self._kodipl_item.setInfo(self.type, self._info)
+        self._libka_item.setInfo(self.type, self._info)
 
     def setInfo(self, type, infoLabels):
         """See Kodi ListItem.setInfo()."""
@@ -113,7 +113,7 @@ class ListItem:
         if self.type is None:
             raise TypeError('setInfo: type is None')
         self._info.update(infoLabels)
-        self._kodipl_item.setInfo(self.type, self._info)
+        self._libka_item.setInfo(self.type, self._info)
 
     @property
     def title(self):
@@ -122,17 +122,17 @@ class ListItem:
     @title.setter
     def title(self, title):
         self._info['title'] = title
-        self._kodipl_item.setInfo(self.type, self._info)
+        self._libka_item.setInfo(self.type, self._info)
 
     def setProperties(self, values):
         """See Kodi ListItem.setProperties()."""
         self._props.update(values)
-        self._kodipl_item.setProperties(values)
+        self._libka_item.setProperties(values)
 
     def setProperty(self, key, value):
         """See Kodi ListItem.setProperty()."""
         self._props[key] = value
-        self._kodipl_item.setProperty(key, value)
+        self._libka_item.setProperty(key, value)
 
     def get_property(self, key):
         """Get set property."""
@@ -528,7 +528,7 @@ class AddonDirectory:
         ifolder = False
         if isinstance(item, ListItem):
             # our list item, recover url and folder flag
-            item, url, ifolder = item._kodipl_item, item._kodipl_url, item._kodipl_folder
+            item, url, ifolder = item._libka_item, item._libka_url, item._libka_folder
             if endpoint is not None:
                 url, *_ = self.router.mkentry(item.getLabel(), endpoint)
         elif isinstance(item, xbmcgui.ListItem):

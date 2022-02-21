@@ -52,8 +52,8 @@ def get_label_getter(id=None):
     return getter.getter
 
 
-#: Language label getter (translation) for kodipl itself.
-L = get_label_getter('script.module.kodipl')
+#: Language label getter (translation) for "libka" itself.
+L = get_label_getter('script.module.libka')
 
 
 #: some basic phrases to translate

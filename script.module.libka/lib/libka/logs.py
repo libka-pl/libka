@@ -1,6 +1,6 @@
 import xbmc
-from kodipl.format import vfstr
-from kodipl.kodi import K18
+from .format import vfstr
+from .kodi import K18
 
 
 def log(msg, level=None):

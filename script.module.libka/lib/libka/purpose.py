@@ -8,8 +8,8 @@ from .utils import adict
 def purpose_decorator(*, name: str, method: Callable, value: Any = True):
 
     def decorator(method):
-        purpose = getattr(method, '_kodipl_purpose', adict())
-        method._kodipl_purpose = purpose
+        purpose = getattr(method, '_libka_purpose', adict())
+        method._libka_purpose = purpose
         purpose[name] = value
         return method
 
@@ -28,7 +28,7 @@ def find_purpose(obj: Any, name: str):
         cls = obj.__class__
     none = adict()
     for method in vars(cls).values():
-        purpose = getattr(method, '_kodipl_purpose', none)
+        purpose = getattr(method, '_libka_purpose', none)
         if purpose.get(name):
             if obj is not None:
                 method = MethodType(method, obj)

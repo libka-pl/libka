@@ -13,7 +13,7 @@ try:
 # except ModuleNotFoundError:
 except ImportError:
     simple_eval = None
-from kodipl.iter import neighbor_iter
+from .iter import neighbor_iter
 
 
 #: Regex type

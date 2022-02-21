@@ -48,15 +48,15 @@ class ListItem(xbmcgui.ListItem):
                  label2: str = "",
                  path: str = "",
                  offscreen: bool = False) -> None:
-        self._kodipl_x_label = label
+        self._libka_x_label = label
         super().__init__(label=label, label2=label2, path=path, offscreen=offscreen)
 
     def getLabel(self) -> str:
-        return self._kodipl_x_label
+        return self._libka_x_label
         # return super().getLabel()
 
     def setLabel(self, label: str) -> None:
-        self._kodipl_x_label = label
+        self._libka_x_label = label
         return super().setLabel(label)
 
 

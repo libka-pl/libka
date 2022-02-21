@@ -190,7 +190,7 @@ class Router:
                 if not ismethod(endpoint) and not isfunction(endpoint):
                     look_4_entries.append(endpoint.__call__)
                 for func in look_4_entries:
-                    entry = getattr(func, '_kodipl_endpoint', None)
+                    entry = getattr(func, '_libka_endpoint', None)
                     if entry is not None:
                         if entry.label is not None:
                             label = entry.label
@@ -302,7 +302,7 @@ class Router:
                 names = [name]
             else:  # object.__call__
                 func = endpoint.__call__
-                e = getattr(func, '_kodipl_endpoint', None)  # extra @entry on __call__
+                e = getattr(func, '_libka_endpoint', None)  # extra @entry on __call__
                 if e is not None and e.path is not None:
                     return e.path
                 if endpoint is self.obj:
@@ -330,7 +330,7 @@ class Router:
             params = dict(enumerate(arguments.args))
             params.update(arguments.arguments)
             # if @entry with path is used, get the path
-            entry = getattr(endpoint, '_kodipl_endpoint', None)
+            entry = getattr(endpoint, '_libka_endpoint', None)
             if entry is not None and entry.path is not None:
                 path = entry.path
             # check security
@@ -662,7 +662,7 @@ def _entry(*, router, method: Callable = None, path: str = None, label: str = No
         def make_call(*args, **kwargs):
             return Call(method, args, kwargs)
 
-        method._kodipl_endpoint = entry
+        method._libka_endpoint = entry
         method.call = make_call
         if router is not None and path is not None:
             router.add_route(path, method=method, entry=entry)
