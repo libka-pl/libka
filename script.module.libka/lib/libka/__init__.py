@@ -1,3 +1,9 @@
+"""
+Simple Kodi addon framework to make all dirty work.
+
+.. include:: ../../../doc/en/introduction.md
+"""
+
 import sys
 import os.path
 

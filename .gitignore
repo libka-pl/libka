@@ -135,4 +135,8 @@ dmypy.json
 
 # Temp files
 *~
+/tmp/
 
+# Outout & build folders
+/html/
+/pool/
