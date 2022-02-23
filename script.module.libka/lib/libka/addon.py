@@ -83,7 +83,7 @@ class Addon:
         #: Kodi commands
         self.cmd = Commands(addon=self, mkurl=self.router.mkurl)
         #: Addon settings.
-        self.settings = Settings(addon=self)
+        self.settings = Settings(addon=self, default=None)
         #: Addon default search.
         self.search = Search(self)
         #: Default userdata

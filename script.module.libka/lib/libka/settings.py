@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from collections import namedtuple
 from typing import (
     TYPE_CHECKING,
-    Any, Callable,
+    Any, Callable, Type,
     Dict, Tuple,
 )
 from .logs import log
@@ -34,9 +34,13 @@ class Settings:
     ----------
     addon: Addon or None
         Libka Addon instance or None.
+    default: Any
+        Default value for keyword access `[key]` and attribute access `.key`.
 
-    This class has own methods and all methods from `xbmcplugin.Addon`
-    and `xbmcplugin.Setting` (since Kodi 20).
+    This class has own methods and all methods from:
+
+    - `xbmcplugin.Addon` – for all helper methods,
+    - `xbmcplugin.Setting` (since Kodi 20) – for new API only.
 
     To get settings use `get()`. To set use `set()`.
     Both methods handle type auto-conversion.
@@ -44,9 +48,11 @@ class Settings:
 
     Keyword access `[key]` uses `get()` and `set()` methods.
     Reading missing key raises `KeyError`.
+    It can be changed by `Settings.set_default_value()`.
 
     Attribute access `.key` uses `get()` and `set()` methods.
     Reading missing key raises `AttributeError`.
+    It can be changed by `Settings.set_default_value()`.
 
     Delete keyword or attribute or `set(None)` sets empty string.
 
@@ -54,6 +60,8 @@ class Settings:
     Should be avoided.
 
     **Note.** Preferred access method is by attribute: `settings.key`.
+
+    **Note.** `libka.addon.Addon` creates instance of `Settings` with `None` as `default`.
 
     Example.
     >>> class MyPluguin(SimplePlugin):
@@ -67,9 +75,9 @@ class Settings:
     >>>         assert self.settings.get_string('my_settings') == '0.5'
     """
 
-    def __init__(self, *, addon: 'Addon' = None):
+    def __init__(self, *, addon: 'Addon' = None, default: Any = MISSING):
         if addon is None:
-            from xmbcaddon import Addon as XbmcAddon
+            from xmbcaddon import Addon as XbmcAddon  # noqa F811
             self._xbmc_addon: XbmcAddon = XbmcAddon()
         else:
             self._xbmc_addon: 'XbmcAddon' = addon.xbmc_addon
@@ -78,21 +86,22 @@ class Settings:
             # since Kodi 20
             self._xbmc: 'XmbcSettings' = self._xbmc_addon.getSettings()
         except AttributeError:
-            self._xbmc: 'XmbcSettings' = None
+            from .kodi import Settings as XmbcSettings  # noqa F811
+            self._xbmc: 'XmbcSettings' = XmbcSettings(xbmc_addon=self._xbmc_addon)
         self._data: Dict[str, Any] = {}
-        if self._xbmc is None:
-            self._xbmc_setters: Dict[Type, Tuple[Callable, Callable]] = {}
-        else:
-            self._xbmc_setters: Dict[Type, Tuple[Callable, Callable]] = {
-                #       value-setter          list-setter
-                bool:  (self._xbmc.setBool,   self._xbmc.setBoolList),
-                int:   (self._xbmc.setInt,    self._xbmc.setIntList),
-                float: (self._xbmc.setNumber, self._xbmc.setNumberList),
-            }
+        self._default = default
 
     def __repr__(self):
         addon = '' if self._addon is None else repr(self._addon)
         return f'Settings({addon})'
+
+    def set_default_value(self, default: Any) -> None:
+        """
+        Set default value to use in attribute access `.key` and
+        keyword access `[key]`. This allows to avoid raise exceptions
+        in those access methods.
+        """
+        self._default = default
 
     def _get(self, key: str, default: Any = None, type: str = 'string') -> Any:
         """Helper. Get setting form cache or from XBMC (and set cache)."""
@@ -100,16 +109,10 @@ class Settings:
             return self._data[key]
         except KeyError:
             pass
-        if self._xbmc is None:
-            # till K19 (inclusive)
-            type = type.capitalize()
-            if type == 'String' or type.endswith('List'):
-                type = ''
-            getter = getattr(self._xbmc_addon, f'getSetting{type}')
-        else:
-            # since K20
-            type = type.capitalize()
-            getter = getattr(self._xbmc, f'get{type}')
+        type = type.capitalize()
+        if type == 'String' or type.endswith('List'):
+            type = ''
+        getter = getattr(self._xbmc_addon, f'getSetting{type}')
         log.debug(f'_get({key!r}, {default!r}, {type!r}): getter={getter!r}')
         try:
             value = getter(key)
@@ -147,6 +150,8 @@ class Settings:
         if value is MISSING:
             return value
         if isinstance(value, str):
+            if not value and default is not None and not isinstance(default, str):
+                return default
             if value.lower() == 'false':
                 return False
             if value.lower() == 'true':
@@ -165,28 +170,6 @@ class Settings:
         Returns true if the value of the setting was set, false otherwise.
         """
         log.debug(f'Settings.set({key!r}, {value!r})')
-
-        # K20 support, detect `value` type
-        if self._xbmc is not None:
-            if value is None:
-                return self._xbmc.setString('')
-            setter = self._xbmc_setters.get(type(value))
-            if setter:
-                return setter[0](key, value)
-            if isinstance(value, bytes):
-                value = value.decode('utf-8')
-            if not isinstance(value, str):
-                if value and isinstance(value, Sequence):  # list of...
-                    v0 = value[0]
-                    setter = self._xbmc_setters.get(type(v0))
-                    if setter:
-                        return setter[1](key, value)
-                    if isinstance(v0, str):
-                        return self._xbmc.setStringtList(key, value)
-                    return self._xbmc.setStringtList(key, [str(v) for v in value])
-                value = str(value)
-            return self._xbmc.setStringt(key, value)
-
         if value is None:
             value = ''
         elif value is False:
@@ -202,8 +185,6 @@ class Settings:
 
     def get_string(self, key: str, default: str = None) -> str:
         """Gets the value of a setting as a unicode string (`str`)."""
-        if self._xbmc is not None:
-            return self._xbmc.getString(key)
         return self._get(key, default)
 
     def set_string(self, key: str, value: str) -> bool:
@@ -214,14 +195,10 @@ class Settings:
         """
         if isinstance(value, bytes):
             value = value.decode('utf-8')
-        if self._xbmc is not None:
-            return self._xbmc.setString(key, value)
         return self.set(key, value)
 
     def get_bool(self, key: str, default: bool = None) -> bool:
         """Gets the value of a setting as a boolean (`bool`)."""
-        if self._xbmc is not None:
-            return self._xbmc.getBool(key)
         return self._get(key, default).lower() == 'true'
 
     def set_bool(self, key: str, value: bool) -> bool:
@@ -230,14 +207,10 @@ class Settings:
 
         Returns true if the value of the setting was set, false otherwise.
         """
-        if self._xbmc is not None:
-            return self._xbmc.setBool(key, bool(value))
         return self.set(key, bool(value))
 
     def get_int(self, key: str, default: int = None) -> int:
         """Gets the value of a setting as an integer (`int`)."""
-        if self._xbmc is not None:
-            return self._xbmc.getInt(key)
         value = self._get(key, default)
         if value == '':
             value = default
@@ -249,14 +222,10 @@ class Settings:
 
         Returns true if the value of the setting was set, false otherwise.
         """
-        if self._xbmc is not None:
-            return self._xbmc.setInt(key, value)
         return self.set(key, int(value))
 
     def get_float(self, key: str, default: float = None) -> float:
         """Gets the value of a setting as a floating point number (`float`)."""
-        if self._xbmc is not None:
-            return self._xbmc.getNumber(key)
         return float(self._get(key, default))
 
     def set_float(self, key: str, value: float) -> bool:
@@ -265,8 +234,6 @@ class Settings:
 
         Returns true if the value of the setting was set, false otherwise.
         """
-        if self._xbmc is not None:
-            return self._xbmc.setNumber(key, value)
         return self.set(key, float(value))
 
     @entry(label=L(32301, 'Settings'))
@@ -275,7 +242,7 @@ class Settings:
         self._xbmc_addon.openSettings()
 
     def __getitem__(self, key):
-        value = self.get(key, MISSING)
+        value = self.get(key, self._default)
         if value is MISSING:
             raise KeyError(key)
         return value
@@ -291,15 +258,18 @@ class Settings:
         if key.startswith('_'):
             raise AttributeError(key)
         if self._xbmc is not None:
+            # access to new K20 Kodi-settings API
             try:
                 return getattr(self._xbmc, key)
             except AttributeError:
                 pass
+        # access to old Kodi-settings API
         try:
             return getattr(self._xbmc_addon, key)
         except AttributeError:
             pass
-        value = self.get(key, MISSING)
+        # access to value
+        value = self.get(key, self._default)
         if value is MISSING:
             raise AttributeError(key)
         return value
