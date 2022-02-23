@@ -83,7 +83,7 @@ class Addon:
         #: Kodi commands
         self.cmd = Commands(addon=self, mkurl=self.router.mkurl)
         #: Addon settings.
-        self.settings = Settings(self)
+        self.settings = Settings(addon=self)
         #: Addon default search.
         self.search = Search(self)
         #: Default userdata
@@ -101,7 +101,7 @@ class Addon:
         self.formatter = SafeFormatter(extended=True)
 
     def __repr__(self):
-        return 'Addon(%r, %r)' % (self.id, str(self.req.url))
+        return f'{self.__class__.__name__}({self.id!r}, {str(self.req.url)!r})'
 
     def info(self, key):
         """Get XBMC addon info (like "path", "version"...)."""
