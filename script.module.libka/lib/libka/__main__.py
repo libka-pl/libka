@@ -24,6 +24,9 @@ class MyPlugin(Plugin):
         print(self.cmd.RunPlugin(self.foo, 22))
         print(self.cmd.Container.Update(call(self.foo, 22), 'replace'))
 
+        # self.search._add('abc')
+        # self.search.clear()
+
     def home(self):
         with self.directory(type='music') as kd:
             kd.menu(self.settings, style=['B', 'COLOR orange'])
@@ -42,7 +45,7 @@ class MyPlugin(Plugin):
     def find_best_movies(self, name, opt):
         with self.directory() as kd:
             kd.item(f'Result {name}: 22', call(self.foo, 22))
-            kd.item(f'Result {name}: 42', call(self.foo, 42))
+            kd.menu(f'Result {name}: 42', call(self.foo, 42))
 
     # # @cache
     # @search.data

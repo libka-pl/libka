@@ -159,6 +159,7 @@ class Search:
         Clear all search history.
         """
         self.udata.remove(self._json_search_name())
+        self.udata.save()
         self.refresh()
 
 

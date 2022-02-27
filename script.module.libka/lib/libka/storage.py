@@ -79,7 +79,7 @@ class Storage:
             path = self.path.resolve()
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp_path = path.with_stem(f'.new.{path.stem}')
-            self._data = self.serializer.save(self._data, tmp_path)
+            self.serializer.save(self._data, tmp_path)
             tmp_path.rename(path)
         except IOError as exc:
             log.error(f'Storage({self.path}): save failed: {exc!r}')

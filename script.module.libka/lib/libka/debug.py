@@ -3,6 +3,7 @@ from functools import wraps, WRAPPER_ASSIGNMENTS
 from typing import (
     List, Tuple,
 )
+import time
 from .logs import log as klog
 
 import xbmc
@@ -41,6 +42,11 @@ def log(msg: str, level: int = xbmc.LOGDEBUG) -> None:
     return xbmc_log(msg=msg, level=level)
 
 
+@wraps(xbmc.sleep)
+def sleep(msec: int) -> None:
+    time.speep(msec * 1000)
+
+
 @wraps_class(xbmcgui.ListItem)
 class ListItem(xbmcgui.ListItem):
 
@@ -51,13 +57,20 @@ class ListItem(xbmcgui.ListItem):
         self._libka_x_label = label
         super().__init__(label=label, label2=label2, path=path, offscreen=offscreen)
 
+    @wraps(xbmcgui.ListItem.getLabel)
     def getLabel(self) -> str:
         return self._libka_x_label
         # return super().getLabel()
 
+    @wraps(xbmcgui.ListItem.setLabel)
     def setLabel(self, label: str) -> None:
         self._libka_x_label = label
         return super().setLabel(label)
+
+    @wraps(xbmcgui.ListItem.addContextMenuItems)
+    def addContextMenuItems(self, lst: List[Tuple[str, str]]) -> None:
+        self._libka_x_menu = lst
+        return super().addContextMenuItems(lst)
 
 
 @wraps(xbmcplugin.addDirectoryItem)
@@ -76,8 +89,15 @@ def addDirectoryItem(handle: int,
 def addDirectoryItems(handle: int,
                       items: List[Tuple[str,  ListItem,  bool]],
                       totalItems: int = 0) -> bool:
-    klog.info('addDirectoryItems(\n{}\n)'.format('\n'.join(f'  ({url!r}, {item.getLabel()!r}),'
-                                                           for url, item, folder in items)))
+    def fmt(url, item, folder):
+        folder = ", '/'" if folder else ''
+        menu = getattr(item, 'self._libka_x_menu', '')
+        if menu:
+            menu = ','.join('\n      ({label!r}, {action!r})' for label, action in menu)
+            menu = f', menu=[\n{menu}\n    ]'
+        return f'  ({url!r}, {item.getLabel()!r}{folder}{menu}),'
+
+    klog.info('addDirectoryItems(\n{}\n)'.format('\n'.join(fmt(*item) for item in items)))
     return xbmcplugin_addDirectoryItems(handle=handle, items=items, totalItems=totalItems)
 
 
@@ -92,6 +112,7 @@ xbmcplugin_addDirectoryItem = xbmcplugin.addDirectoryItem
 xbmcplugin_addDirectoryItems = xbmcplugin.addDirectoryItems
 xbmcaddon_Addon_getLocalizedString = xbmcaddon.Addon.getLocalizedString
 xbmc_log = xbmc.log
+xbmc_sleep = xbmc.sleep
 
 
 def xbmc_debug(console: bool = None, items: bool = None,
@@ -115,6 +136,8 @@ def xbmc_debug(console: bool = None, items: bool = None,
     if fake is True:
         xbmcgui.ListItem = ListItem
         xbmcaddon.Addon.getLocalizedString = getLocalizedString
+        xbmc.sleep = sleep
     elif fake is False:
         xbmcgui.ListItem = xbmcgui_ListItem
         xbmcaddon.Addon.getLocalizedString = xbmcaddon_Addon_getLocalizedString
+        xbmc.sleep = xbmc_sleep
