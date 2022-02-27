@@ -148,7 +148,9 @@ class Addon:
 
     def run(self, *, sync: bool = True):
         """Run plugin. Dispatch url. Use sync=False to run asyncio."""
-        return self.dispatch(sync=sync)
+        res = self.dispatch(sync=sync)
+        self.user_data.save()
+        return res
 
     @contextmanager
     def directory(self, *, safe: bool = False, **kwargs):
