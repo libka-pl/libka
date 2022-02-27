@@ -6,6 +6,7 @@ import sys
 from .debug import xbmc_debug
 from . import Plugin, call, PathArg, search
 from .lang import text
+from .logs import log
 
 xbmc_debug(fake=True, console=True, items=True)
 
@@ -52,4 +53,5 @@ class MyPlugin(Plugin):
 # VideoInfo = namedtuple('VideoInfo', 'title genre duration year')
 
 del sys.argv[0]  # for kodi plugin call simulate
+log(sys.argv, title='ARGS')
 MyPlugin().run()

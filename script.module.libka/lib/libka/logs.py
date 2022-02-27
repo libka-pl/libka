@@ -1,19 +1,18 @@
 import xbmc
 from .format import vfstr
-from .kodi import K18
 
 
-def log(msg, level=None):
+def log(*msg, sep=' ', title=None, level=None):
     """XBMC log."""
-    if isinstance(msg, bytes):
-        msg = msg.decode('utf-8')
-    elif not isinstance(msg, str):
-        msg = str(msg)
+    msg = sep.join(map(str, msg))
+    # if isinstance(msg, bytes):
+    #     msg = msg.decode('utf-8')
+    # elif not isinstance(msg, str):
+    #    msg = str(msg)
     if level is None:
-        if K18:
-            level = xbmc.LOGNOTICE
-        else:
-            level = xbmc.LOGINFO
+        level = xbmc.LOGINFO
+    if title is not None:
+        msg = f'===== {title} =====  {msg}'
     xbmc.log(msg, level)
 
 
