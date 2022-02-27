@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.module.libka" name="KodiPL Library Module" version="0.0.6" provider-name="kodi-pl">
+<addon id="script.module.libka" name="KodiPL Library Module" version="0.0.7" provider-name="kodi-pl">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0" />
 		<import addon="script.module.requests" />
@@ -12,8 +12,9 @@
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/kodi-pl/kodipl/script.module.libka</source>
-		<news>v0.0.6
+		<news>v0.0.7
 [fix] refactor settings
+[fix] improve log
 v0.0.5
 [new] change ID to script.module.libka
 v0.0.4
