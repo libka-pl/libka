@@ -184,8 +184,6 @@ class Site:
         # return self.post(url, **kwargs).json()
         log('jpost(%r, %r)' % (url, kwargs))  # XXX
         resp = self.post(url, **kwargs)
-        with open('/tmp/z', 'wb') as f:
-            f.write(resp.content)
         return resp.json()
 
 
