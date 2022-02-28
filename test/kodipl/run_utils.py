@@ -4,7 +4,7 @@ import asyncio
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'script.module.kodipl' / 'lib'))
 
-from kodipl.routing import (  # noqa: E402
+from libka.routing import (  # noqa: E402
     subobject,
     entry,
     PathArg,
