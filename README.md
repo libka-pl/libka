@@ -1,2 +1,3 @@
-# kodipl
-kodipl
+# libka
+
+Library for Kodi Addons
