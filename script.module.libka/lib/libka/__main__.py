@@ -7,8 +7,11 @@ from .debug import xbmc_debug
 from . import Plugin, call, PathArg, search
 from .lang import text
 from .logs import log
+from . import path as pathmod
+
 
 xbmc_debug(fake=True, console=True, items=True)
+pathmod.vfs = None
 
 
 class MyPlugin(Plugin):

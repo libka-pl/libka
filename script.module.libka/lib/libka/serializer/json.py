@@ -22,12 +22,12 @@ class Json:
             return None
         except json.JSONDecodeError as exc:
             log.error(f'Decode data file {path} FAILED: {exc!r}')
-            return {}
+            return None
 
     def save(self, data: Any, path: Union[Path, str]) -> None:
         try:
             with open(path, 'w') as f:
                 indent = self.indent if self.pretty else 0
-                self._data = json.dump(data, f, indent=indent)
+                json.dump(data, f, indent=indent)
         except IOError as exc:
-            log.error(f'AddonUserData({self.path}): save failed: {exc!r}')
+            log.error(f'AddonUserData({path}): save failed: {exc!r}')

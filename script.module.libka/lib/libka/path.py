@@ -1,9 +1,9 @@
 import os
 import re
 try:
-    import xbmcvfs as fvs
+    import xbmcvfs as vfs
 except ImportError:
-    fvs = None
+    vfs = None
 
 
 class Path(str):
@@ -167,9 +167,9 @@ class Path(str):
 
     def exists(self):
         """Whether the path points to an existing file or directory."""
-        if fvs is None:
+        if vfs is None:
             return os.path.exists(self)
-        return fvs.exists(self)
+        return vfs.exists(self)
 
     def is_dir(self):
         """
@@ -234,7 +234,7 @@ class Path(str):
         (same behavior as the POSIX mkdir -p command),
         but only if the last path component is not an existing non-directory file.
         """
-        if fvs is None:
+        if vfs is None:
             if parents:
                 os.makedirs(self, mode, exist_ok=exist_ok)
             else:
@@ -244,16 +244,16 @@ class Path(str):
                     if not exist_ok:
                         raise
         else:
-            result = fvs.mkdirs(self) if parents else fvs.mkdir(self)
+            result = vfs.mkdirs(self) if parents else vfs.mkdir(self)
             if not result and (not exist_ok or not self.exists()):
                 raise IOError('Can not create folder {!r}'.format(str(self)))
 
     def rmdir(self):
         """Remove this directory. The directory must be empty."""
-        if fvs is None:
+        if vfs is None:
             os.rmdir(self)
         else:
-            fvs.rmdir(self)
+            vfs.rmdir(self)
 
     def rename(self, target):
         """
@@ -261,10 +261,10 @@ class Path(str):
         On Unix, if `target` exists and is a file, it will be replaced silently if the user has permission.
         `target` can be either a string or another path object.
         """
-        if fvs is None:
+        if vfs is None:
             os.rename(self, target)
         else:
-            if not fvs.rename(self, target):
+            if not vfs.rename(self, target):
                 raise IOError('Can not reanme {!r} to {!r}'.format(str(self), str(target)))
 
     def unlink(self, missing_ok=False):
@@ -276,10 +276,10 @@ class Path(str):
         If `missing_ok` is true, `FileNotFoundError` exceptions will be ignored
         (same behavior as the POSIX rm -f command).
         """
-        if fvs is None:
+        if vfs is None:
             os.rmdir(self)
         else:
-            if not fvs.remove(self) and (not missing_ok or self.exists()):
+            if not vfs.remove(self) and (not missing_ok or self.exists()):
                 raise IOError('Can not remove {!r}'.format(str(self)))
 
     # TODO: maybe add xbmcvfs sepcific functions: copy(), listdir()?

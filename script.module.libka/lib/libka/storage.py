@@ -1,14 +1,31 @@
+"""
+User data storage module.
+
+`Storage` allows to load and save user date in easy way. Could be instanced in any time with any file path.
+
+`libka.addon.Addon` instance has already created `Storage` available as `self.user_data`. It is auto-save on
+end of `libka.addon.Addon.run()` method, even if exception raises.
+
+>>> class Main(SimplePlugin):
+>>>    def foo(self):
+>>>        n = self.user_data.get('bar.baz', 0)
+>>>        self.user_data.set('bar.baz', n + 1)
+"""
+
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import (
     Union, Any,
     List, Dict,
 )
-from inspect import isclass
+from inspect import isclass, ismodule
+import json
 from xbmcvfs import translatePath
 from .path import Path
 from .logs import log
 from .serializer.json import Json
+from .serializer.pickle import Pickle
+from .serializer.module import Module
 
 
 class NoDefault:
@@ -17,14 +34,51 @@ class NoDefault:
 
 class Storage:
     """
-    Simple data storage in .kodi/user_data/...
+    Simple data storage in `~/.kodi/user_data/addon_data/*/...`.
+
+    Parameters
+    ----------
+    path : libka.path.Path or str or None
+        Relative path to addon profile directory or absolute path. If None, `data.json`¹ is used.
+    addon : libka.addon.Addon
+        Main addon instance or None.
+    sync : bool
+        If true data are saved after every `Storage.set()` and `Storage.remove()`. Default false.
+    pretty : bool
+        Write pretty data if serializer handle it (ex. `json`).
+    serializer: str or object or class or module
+        Serializer and deserializer for data.
+
+    Main API is `Storage.get()`, `Storage.set()` and `Storage.remove()`.
+
+    Supported serialisers:
+
+    - `json` – use JSON
+    - `pickle` – user pickle module
+    - object – use ovject `load(path)` and `save(data, path, pretty)`
+    - class – create and use `class()` object
+    - module – call `module.load(f)` and `module.dump(data, f)`, where `f` is opened binary file
+               like `pickle` or `marshal`
+
+    ¹) File extension depends on `serializer.SUFFIX` or ".data" otherwise.
     """
+
+    #: Serializer classes
+    SERIALIZER: Dict = {
+        'json': Json,
+        'pickle': Pickle,
+        json: Json,
+    }
 
     def __init__(self, path=None, *, addon, default: Any = None, sync: bool = False, pretty: bool = True,
                  serializer=None):
         if serializer is None:
             serializer = Json
-        if isclass(serializer):
+        else:
+            serializer = self.SERIALIZER.get(serializer, serializer)
+        if ismodule(serializer):
+            serializer = Module(module=serializer)
+        elif isclass(serializer):
             serializer = serializer()
         self.addon = addon
         self.serializer = serializer
@@ -32,7 +86,7 @@ class Storage:
         if path is None:
             path = 'data{suffix}'
         if isinstance(path, str):
-            path = path.format(suffix=serializer.SUFFIX)
+            path = path.format(suffix=getattr(serializer, 'SUFFIX', 'data'))
         self._path: Path = Path(path)
         self.default: Any = default
         self.sync: bool = sync
@@ -42,7 +96,7 @@ class Storage:
 
     @property
     def base(self) -> Path:
-        """Path to addon folder."""
+        """Path to addon profile folder."""
         if self._base is None:
             if self.addon is None:
                 from xbmcaddon import Addon  # fallback
@@ -54,14 +108,14 @@ class Storage:
 
     @property
     def path(self) -> Path:
-        """Starage path file."""
+        """Storage file path."""
         if not self._path.is_absolute():
             self._path = self.base / self._path
         return self._path
 
     @property
     def data(self) -> Dict[str, Any]:
-        """Lazy load and get data."""
+        """Lazy load and get all data like `Storage.get` with `('')` or `([])`."""
         if self._data is None:
             try:
                 self._data = self.serializer.load(self.path)
@@ -71,11 +125,11 @@ class Storage:
 
     @property
     def dirty(self) -> bool:
-        """Read dirty flag."""
+        """Read dirty flag. True id data needs to be written."""
         return self._dirty
 
     def do_save(self) -> None:
-        """Save data."""
+        """Helper. Save data."""
         if self._data is None:
             return
         try:
@@ -83,6 +137,7 @@ class Storage:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp_path = path.with_stem(f'.new.{path.stem}')
             self.serializer.save(self._data, tmp_path)
+            print(f'{tmp_path!r} -> {path!r}')
             tmp_path.rename(path)
         except IOError as exc:
             log.error(f'Storage({self.path}): save failed: {exc!r}')
@@ -93,7 +148,18 @@ class Storage:
             self.do_save()
 
     def get(self, key: Union[str, List[str]], default: Any = NoDefault) -> Any:
-        """Get dot-separated key value."""
+        """Get dot-separated key value.
+
+        Parameters
+        ----------
+        key : str or list of str
+            Value path like `'a.b.c'` where `value` is stored.
+            Could be as list of keys like `['a', 'b', 'c']`.
+
+        Returns
+        -------
+        Value pointed by `key`. Could be complex like `list` or `dict`.
+        """
         if self.data is None:
             return default
         if default is NoDefault:
@@ -109,7 +175,25 @@ class Storage:
         return data
 
     def set(self, key: Union[str, List[str]], value: Any) -> None:
-        """Set dot-separated key value. Force dicts in path."""
+        """
+        Set dot-separated key value. Force `dict` in key-path.
+
+        Parameters
+        ----------
+        key : str or list of str
+            Value path like `'a.b.c'` where `value` will be stored.
+            Could be as list of keys like `['a', 'b', 'c']`.
+        value : any
+            Value to storage. Could be complex like `list` or `dict`.
+
+        If any of key-path doesn't exist or is not a `dict`, new `dict` is created.
+        >>> data = Storage(addon=addon)
+        >>> data.data()
+        >>> # {'a': {'b': 2}}
+        >>> data.set('a.b.c', 3)
+        >>> data.data()
+        >>> # {'a': {'b': {'c': 3}}}
+        """
         if not key:
             return
         self._dirty = True
@@ -128,7 +212,18 @@ class Storage:
             self.save()
 
     def remove(self, key: Union[str, List[str]]) -> None:
-        """Remove dot-separated key value."""
+        """
+        Remove dot-separated key value.
+        `Storage.remove()` and `Storage.delete()` is the same method.
+
+        Parameters
+        ----------
+        key : str or list of str
+            Value path like `'a.b.c'` where `value` is stored.
+            Could be as list of keys like `['a', 'b', 'c']`.
+
+        Remove missing key do nothing.
+        """
         if not key or self.data is None:
             return
         if isinstance(key, str):
