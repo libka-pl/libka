@@ -486,7 +486,7 @@ class Router:
                             args.append(kwargs.pop(p.name))
                     except KeyError:
                         if p.default is p.empty:
-                            raise TypeError(f'Missing {i} argument {p.name!r}') from None
+                            raise TypeError(f'Missing {i} argument {p.name!r} in {method!r}()') from None
             elif p.kind == p.VAR_POSITIONAL:
                 while True:
                     try:

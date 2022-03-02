@@ -1,6 +1,8 @@
+from contextlib import contextmanager
+from copy import deepcopy
 from typing import (
     Union, Any,
-    List,
+    List, Dict,
 )
 from inspect import isclass
 from xbmcvfs import translatePath
@@ -26,19 +28,20 @@ class Storage:
             serializer = serializer()
         self.addon = addon
         self.serializer = serializer
-        self._base = None
+        self._base: Path = None
         if path is None:
             path = 'data{suffix}'
         if isinstance(path, str):
             path = path.format(suffix=serializer.SUFFIX)
-        self._path = Path(path)
-        self.default = default
-        self.sync = sync
-        self._dirty = False
-        self._data = None
+        self._path: Path = Path(path)
+        self.default: Any = default
+        self.sync: bool = sync
+        self._dirty: bool = False
+        self._data: Dict[str, Any] = None
+        self._transactions: Dict[str, Any] = []
 
     @property
-    def base(self):
+    def base(self) -> Path:
         """Path to addon folder."""
         if self._base is None:
             if self.addon is None:
@@ -50,14 +53,14 @@ class Storage:
         return self._base
 
     @property
-    def path(self):
+    def path(self) -> Path:
         """Starage path file."""
         if not self._path.is_absolute():
             self._path = self.base / self._path
         return self._path
 
     @property
-    def data(self):
+    def data(self) -> Dict[str, Any]:
         """Lazy load and get data."""
         if self._data is None:
             try:
@@ -67,11 +70,11 @@ class Storage:
         return self._data
 
     @property
-    def dirty(self):
+    def dirty(self) -> bool:
         """Read dirty flag."""
         return self._dirty
 
-    def do_save(self):
+    def do_save(self) -> None:
         """Save data."""
         if self._data is None:
             return
@@ -84,12 +87,12 @@ class Storage:
         except IOError as exc:
             log.error(f'Storage({self.path}): save failed: {exc!r}')
 
-    def save(self):
+    def save(self) -> None:
         """Save file if data changed."""
         if self._dirty:
             self.do_save()
 
-    def get(self, key: Union[str, List[str]], default: Any = NoDefault):
+    def get(self, key: Union[str, List[str]], default: Any = NoDefault) -> Any:
         """Get dot-separated key value."""
         if self.data is None:
             return default
@@ -105,7 +108,7 @@ class Storage:
                 return default
         return data
 
-    def set(self, key: Union[str, List[str]], value: Any):
+    def set(self, key: Union[str, List[str]], value: Any) -> None:
         """Set dot-separated key value. Force dicts in path."""
         if not key:
             return
@@ -124,7 +127,7 @@ class Storage:
         if self.sync:
             self.save()
 
-    def remove(self, key: Union[str, List[str]]):
+    def remove(self, key: Union[str, List[str]]) -> None:
         """Remove dot-separated key value."""
         if not key or self.data is None:
             return
@@ -145,3 +148,24 @@ class Storage:
             self.save()
 
     delete = remove
+
+    @contextmanager
+    def transaction(self):
+        """
+        Set transaction to keep all operations set or not. Even if exception raises.
+
+        >>> with self.transaction() as data:
+        >>>     data.set('foo', 1)
+        >>>     raise Exception()  # test
+        >>>     data.set('bar', 2)
+        """
+        try:
+            self._transactions.append(deepcopy(self._data))
+            yield self
+        except BaseException:
+            # restore old copy and continue exception
+            self._data = self._transactions.pop()
+            raise
+        else:
+            # ignore old copy
+            self._transactions.pop()

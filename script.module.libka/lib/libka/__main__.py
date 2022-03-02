@@ -24,6 +24,16 @@ class MyPlugin(Plugin):
         print(self.cmd.RunPlugin(self.foo, 22))
         print(self.cmd.Container.Update(call(self.foo, 22), 'replace'))
 
+        self.user_data.set('foo', 0)
+        self.user_data.set('baz', 9)
+        try:
+            with self.user_data.transaction() as data:
+                data.set('foo', 1)
+                raise Exception()  # test
+                data.set('bar', 2)
+        finally:
+            log(self.user_data._data)
+
         # self.search._add('abc')
         # self.search.clear()
 
