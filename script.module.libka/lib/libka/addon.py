@@ -36,7 +36,7 @@ class Request:
 
 class Addon:
     """
-    Abstract KodiPL Addon.
+    Abstract Libka Addon.
 
     Arguments
     ---------
@@ -205,5 +205,5 @@ class Addon:
 
 class Plugin(Addon):
     """
-    Abstract KodiPL Addon. Plugin is kind of Addon.
+    Abstract Libka Addon. Plugin is kind of Addon.
     """

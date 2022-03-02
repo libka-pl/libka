@@ -1,5 +1,5 @@
 """
-KodiPL set of utils.
+Libka set of utils.
 
 Author: rysson + stackoverflow
 """
@@ -125,7 +125,7 @@ Fields:
  - raw       - Raw (input) URL string.
  - scheme    - URL scheme, ex. "plugin://" for Kodi plugin.
  - authority - URL host with user and pass and port
- - path      - URL path, ex. method to call in KodiPL Addon.
+ - path      - URL path, ex. method to call in Libka Addon.
  - query     - multi-dictionary to handle arrays.
  - fragemnt  - URL fragemnt (after '#') should never be used in server URL.
 

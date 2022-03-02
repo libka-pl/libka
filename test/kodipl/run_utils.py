@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import asyncio
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'script.module.kodipl' / 'lib'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / 'script.module.libka' / 'lib'))
 
 from libka.routing import (  # noqa: E402
     subobject,

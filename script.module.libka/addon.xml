@@ -11,8 +11,10 @@
 		<summary lang="pl_PL">Biblioteka dla dodatków Kodi</summary>
 		<platform>all</platform>
 		<license>MIT</license>
-		<source>https://github.com/kodi-pl/kodipl/script.module.libka</source>
-		<news>v0.0.8
+		<source>https://github.com/libka-pl/libka/script.module.libka</source>
+		<news>v0.0.9
+[fix] rename source repo
+v0.0.8
 [fix] refactor settings
 [fix] improve log
 v0.0.5
