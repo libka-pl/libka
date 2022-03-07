@@ -7,7 +7,7 @@ Simple Kodi addon framework to make all dirty work.
 import sys
 import os.path
 
-__version__ = '0.0.11'
+__version__ = '0.0.12'
 
 
 # Add paths to 3rd-party libs
