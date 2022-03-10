@@ -12,6 +12,7 @@ end of `libka.addon.Addon.run()` method, even if exception raises.
 >>>        self.user_data.set('bar.baz', n + 1)
 """
 
+# import os
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import (
@@ -19,6 +20,7 @@ from typing import (
     List, Dict,
 )
 from inspect import isclass, ismodule
+from shutil import move
 import json
 from xbmcvfs import translatePath
 from .path import Path
@@ -135,12 +137,26 @@ class Storage:
         try:
             path = self.path.resolve()
             path.parent.mkdir(parents=True, exist_ok=True)
+            # os.chmod(path.parent, 0o777)
             tmp_path = path.with_stem(f'.new.{path.stem}')
             self.serializer.save(self._data, tmp_path)
-            print(f'{tmp_path!r} -> {path!r}')
-            tmp_path.rename(path)
         except IOError as exc:
             log.error(f'Storage({self.path}): save failed: {exc!r}')
+            try:
+                tmp_path.unlink()
+            except IOError:
+                pass
+        else:
+            log.debug(f'{tmp_path!r} -> {path!r}')
+            try:
+                tmp_path.rename(path)
+                move(tmp_path, path)
+            except IOError as exc:
+                # for Windows rename() fails on existing file
+                # then remove target file and try rename again
+                log.info(f'Storage({self.path}): rename failed: {exc!r}')
+                path.unlink()
+                move(tmp_path, path)
 
     def save(self) -> None:
         """Save file if data changed."""
