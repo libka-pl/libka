@@ -149,7 +149,6 @@ class Storage:
         else:
             log.debug(f'{tmp_path!r} -> {path!r}')
             try:
-                tmp_path.rename(path)
                 move(tmp_path, path)
             except IOError as exc:
                 # for Windows rename() fails on existing file

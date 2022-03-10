@@ -277,9 +277,9 @@ class Path(str):
         (same behavior as the POSIX rm -f command).
         """
         if vfs is None:
-            os.rmdir(self)
+            os.unlink(self)
         else:
-            if not vfs.remove(self) and (not missing_ok or self.exists()):
+            if not vfs.delete(self) and (not missing_ok or self.exists()):
                 raise IOError('Can not remove {!r}'.format(str(self)))
 
     # TODO: maybe add xbmcvfs sepcific functions: copy(), listdir()?
