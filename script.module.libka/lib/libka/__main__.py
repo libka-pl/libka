@@ -4,7 +4,7 @@
 
 import sys
 from .debug import xbmc_debug
-from . import Plugin, call, PathArg, search
+from . import Plugin, call, PathArg, RawArg, search
 from .lang import text
 from .logs import log
 from . import path as pathmod
@@ -23,19 +23,21 @@ class MyPlugin(Plugin):
         # self.search.set_option(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
         # self.search.set_xml(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
 
+        # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')
         print(self.cmd.RunPlugin(self.foo, 22))
         print(self.cmd.Container.Update(call(self.foo, 22), 'replace'))
 
-        self.user_data.set('foo', 0)
-        self.user_data.set('baz', 9)
-        try:
-            with self.user_data.transaction() as data:
-                data.set('foo', 1)
-                raise Exception()  # test
-                data.set('bar', 2)
-        finally:
-            log(self.user_data._data)
+        if False:
+            self.user_data.set('foo', 0)
+            self.user_data.set('baz', 9)
+            try:
+                with self.user_data.transaction() as data:
+                    data.set('foo', 1)
+                    raise Exception()  # test
+                    data.set('bar', 2)
+            finally:
+                log(self.user_data._data)
 
         # self.search._add('abc')
         # self.search.clear()
@@ -59,6 +61,19 @@ class MyPlugin(Plugin):
         with self.directory() as kd:
             kd.item(f'Result {name}: 22', call(self.foo, 22))
             kd.menu(f'Result {name}: 42', call(self.foo, 42))
+
+    def test_raw(self):
+        # id_list = [item['id'] for results in data for item in results]
+        id_list = list(range(20))
+        with self.directory() as kdir:
+            kdir.menu('title', call(self.get_search_tabs, id_list=id_list))
+            kdir.menu('title', call(self.get_search_tabs_s, id_list=id_list))
+
+    def get_search_tabs(self, id_list: RawArg):
+        print(type(id_list))
+
+    def get_search_tabs_s(self, id_list: PathArg):
+        print(type(id_list))
 
     # # @cache
     # @search.data

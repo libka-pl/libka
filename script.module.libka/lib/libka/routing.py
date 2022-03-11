@@ -63,13 +63,13 @@ class ArgMixin:
     """Custom argument pseudo-type for annotations."""
 
     @classmethod
-    def subtype(cls, ann):
+    def subtype(cls, ann, default=str):
         """Remove Optional and returns subtype from PathArg (or `str` if none)."""
         ann = remove_optional(ann)
         origin = getattr(ann, '__origin__', ann)
         try:
-            if origin is cls or issubclass(origin, ArgMixin):
-                return getattr(ann, '__args__', (str,))[0]
+            if origin is cls or issubclass(origin, cls):
+                return getattr(ann, '__args__', (default,))[0]
         except TypeError:
             pass
         return None
@@ -253,17 +253,21 @@ class Router:
                     return k
                 return f':{k}'
 
-    def _make_path_args(self, endpoint: EndpointEntry, path_items: List[Any], params: KwArgs) -> None:
-        """Add arguemnts to path (if PathArgs is used). Modify `path_items`."""
+    def _make_path_args(self, endpoint: EndpointEntry, path_items: List[Any], params: KwArgs,
+                        raw: Dict[str, Any]) -> None:
+        """Add arguemnts to path (if PathArgs is used) and/or raw. Modify `path_items` & `raw."""
         sig = signature(endpoint)
         hints = get_type_hints(endpoint)
         count = 0
         for p in sig.parameters.values():
-            if ArgMixin.subtype(hints.get(p.name)) is not None:
+            ht = hints.get(p.name)
+            if PathArg.subtype(ht) is not None:
                 path_items.append(params.pop(p.name))
                 if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
                     params.pop(count, None)
                     count += 1
+            elif RawArg.subtype(ht) is not None:
+                raw.setdefault('_', {})[p.name] = params.pop(p.name)
 
     def mkurl(self, endpoint: Union[str, Callable], *args, **kwargs) -> str:
         """
@@ -291,6 +295,7 @@ class Router:
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
 
         def find_path(endpoint):
+            """Find enpoind entry path."""
             names, func = [], endpoint
             if ismethod(endpoint):
                 names = self._find_object_path(endpoint.__self__)
@@ -311,7 +316,7 @@ class Router:
                     names = self._find_object_path(endpoint)
                 if not names:
                     raise ValueError(f'Object {endpoint!r} not found')
-            self._make_path_args(func, names, params)
+            self._make_path_args(func, names, params, raw)
             path = '/'.join(map(str, names))
             return f'/{path}'
 
@@ -321,7 +326,7 @@ class Router:
             args = endpoint.args + args
             kwargs = {**endpoint.kwargs, **kwargs}
             if endpoint.raw:
-                raw = {'_': endpoint.raw}
+                raw.setdefault('_', {}).update(endpoint.raw)
             endpoint = endpoint.method
 
         # if endpoint is calable -> need to find endpoint path
@@ -401,7 +406,9 @@ class Router:
             t = None if p is None else hints.get(p.name)
             if t is not None:
                 t = remove_optional(t)
-                if (x := ArgMixin.subtype(t)) is not None:
+                if (x := PathArg.subtype(t)) is not None:
+                    t = x
+                if (x := RawArg.subtype(t, Any)) is not None:
                     t = x
                 ot = get_origin(t)
                 if p.kind == p.VAR_POSITIONAL:
