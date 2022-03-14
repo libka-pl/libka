@@ -130,7 +130,7 @@ class Storage:
         """Read dirty flag. True id data needs to be written."""
         return self._dirty
 
-    def do_save(self) -> None:
+    def _do_save(self) -> None:
         """Helper. Save data."""
         if self._data is None:
             return
@@ -160,7 +160,7 @@ class Storage:
     def save(self) -> None:
         """Save file if data changed."""
         if self._dirty:
-            self.do_save()
+            self._do_save()
 
     def get(self, key: Union[str, List[str]], default: Any = NoDefault) -> Any:
         """Get dot-separated key value.
@@ -175,10 +175,10 @@ class Storage:
         -------
         Value pointed by `key`. Could be complex like `list` or `dict`.
         """
-        if self.data is None:
-            return default
         if default is NoDefault:
             default = self.default
+        if self.data is None:
+            return default
         if isinstance(key, str):
             key = key.split('.')
         data = self.data
