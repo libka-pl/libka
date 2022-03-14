@@ -16,7 +16,8 @@ from typing import (
     Dict, List, Tuple,
 )
 from .logs import log
-from .utils import parse_url, encode_url, ParsedUrl
+from .utils import parse_url, encode_url
+from .url import URL
 from .types import (
     remove_optional, bind_args,
     uint, pint, mkbool,
@@ -125,16 +126,20 @@ class Router:
         'bool':   ArgDescr(mkbool, r'true|false'),
     }
 
-    def __init__(self, url: Optional[str] = None, obj: Optional[object] = None, *,
+    def __init__(self, url: Optional[Union[URL, str]] = None, obj: Optional[object] = None, *,
                  standalone: Optional[bool] = False, router: Optional['Router'] = None,
                  addon: Optional['Addon'] = None):
-        self.url = url
+        #: Base URL of routing (plugin).
+        self.url = None if url is None else URL(url)
+        #: Base object for method URL build.
         self.obj = obj
+        #: Routes for decorators.
         self.routes = []
         if standalone is False:
             self.routes = default_router.routes  # link to routes (it's NOT a copy)
         if router is not None:
             self.routes.extend(router.routes)
+        #: Addon.
         self.addon = addon
 
     def add_route(self, path: str, *, method: Callable, entry: EndpointEntry) -> None:
@@ -507,15 +512,19 @@ class Router:
                 break
         return self._convert_args(method, args, kwargs, sig=sig)
 
-    def _dispatcher_entry(self, url: Union[str, ParsedUrl], *,
+    def _dispatcher_entry(self, url: Union[URL, str], *,
                           root: Callable, missing: Optional[Callable] = None) -> Call:
         """
         Dispatcher helper. Find pointed method with request arguments.
         """
         # Request (dack typing)
-        if isinstance(url, str):
+        if isinstance(url, URL):
+            pass
+        elif isinstance(url, str):
             url = parse_url(url, raw={'_'})
-        params = {int(k) if k.isdigit() else k: v for k, v in url.args.items()}
+        else:
+            url = URL(url)
+        params = {int(k) if k.isdigit() else k: v for k, v in url.query.items()}
         raw = params.pop('_', None)
         if raw:
             params.update(raw)
@@ -546,7 +555,7 @@ class Router:
         assert all(isinstance(k, str) for k in entry.kwargs)
         return entry
 
-    def sync_dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+    def sync_dispatch(self, url: Union[URL, str], root: Optional[Callable] = None, *,
                       missing: Optional[Callable] = None) -> Any:
         """
         Sync dispatch. Call pointed method with request arguments.
@@ -565,7 +574,7 @@ class Router:
         # call pointed method
         return entry.method(*entry.args, **entry.kwargs)
 
-    async def async_dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+    async def async_dispatch(self, url: Union[URL, str], root: Optional[Callable] = None, *,
                              missing: Optional[Callable] = None) -> Any:
         """
         Async dispatcher. Call pointed method with request arguments.
@@ -584,7 +593,7 @@ class Router:
             return await entry.method(*entry.args, **entry.kwargs)
         return entry.method(*entry.args, **entry.kwargs)
 
-    def dispatch(self, url: Union[str, ParsedUrl], root: Optional[Callable] = None, *,
+    def dispatch(self, url: Union[URL, str], root: Optional[Callable] = None, *,
                  missing: Optional[Callable] = None) -> Any:
         """
         Dispatcher. Call pointed method with request arguments.

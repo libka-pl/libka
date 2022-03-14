@@ -1,10 +1,10 @@
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
-from .utils import setdefaultx
+from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
-from .logs import log
+# from .logs import log
 import xbmcgui
 import xbmcplugin
 
@@ -139,6 +139,7 @@ class ListItem:
         return self._props.get(key)
 
 
+#: Helper. Sort item.
 Sort = namedtuple('Sort', 'method labelMask label2Mask')
 Sort.__new__.__defaults__ = (None, None)
 Sort.auto = 'auto'

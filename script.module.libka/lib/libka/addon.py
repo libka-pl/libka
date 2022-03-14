@@ -27,11 +27,10 @@ class Request:
     """
 
     def __init__(self, url, *, raw_keys=None):
+        #: Parsed URL of addon reguest.
         self.url = parse_url(url, raw=raw_keys)
-        self.params = self.url.args
-        # flog('XXXXX: argv: {sys.argv}')
-        # flog('XXXXX: url:  {list(self.url)}')
-        # flog('XXXXX: req={self.url}, link={self.url.link!r}, params={self.params!r}')
+        #: Request decoded query dict.
+        self.params = self.url.query
 
 
 class Addon:

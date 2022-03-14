@@ -30,7 +30,7 @@ URL('https://host.com/api/%s/%03d' % ('foo', 42))
 from sys import getdefaultencoding
 from inspect import isfunction, isdatadescriptor
 import yarl
-from .utils import copy_function
+from .tools import copy_function
 
 
 class MISSING:

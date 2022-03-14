@@ -1,8 +1,8 @@
 
 from collections.abc import Callable
 from types import MethodType
-from typing import Any, Type
-from .utils import adict
+from typing import Any
+from .tools import adict
 
 
 def purpose_decorator(*, name: str, method: Callable, value: Any = True):
