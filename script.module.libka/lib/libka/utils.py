@@ -86,7 +86,6 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
     return url % encode_params(params=params, raw=raw)
 
 
-print(f'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  {__name__!r}   <==========')
 if __name__ == '__main__':
     s = encode_url('http://a.b/c/d', params={'e': 42}, raw={'x': set((1, 2, 3))})
     print(f'encoding url: {s!r}')

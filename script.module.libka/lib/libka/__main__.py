@@ -5,6 +5,7 @@
 import sys
 from .debug import xbmc_debug
 from . import Plugin, call, PathArg, RawArg, search
+# from . import Site
 from .lang import text
 from .logs import log
 from . import path as pathmod
@@ -38,6 +39,13 @@ class MyPlugin(Plugin):
                     data.set('bar', 2)
             finally:
                 log(self.user_data._data)
+
+        # s = Site(base='https://docs.python.org/3/library')
+        # t = s.txtget('runpy.html')
+        # print(t.find('run_module'))
+        # t = s.txtget('/3/tutorial/controlflow.html')
+        # assert t == s.txtget('../tutorial/controlflow.html')
+        # print(t.find('Perhaps the most well-known statement type is'))
 
         # self.search._add('abc')
         # self.search.clear()

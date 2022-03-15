@@ -195,7 +195,7 @@ class Site:
             worker = self.site_request_worker
         url = URL(url)
         if not url.is_absolute():
-            url = self.base.join(url.path)
+            url = self.base.join(url)
         if isinstance(params, Mapping):
             url, params = encode_url(url, params=params), None
 

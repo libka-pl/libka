@@ -3,6 +3,18 @@ Usage
 
 To use `requests` wrapper you need to create an instance of `Site`.
 
+```python
+site = Site(base='https://docs.python.org/3/library')
+txt1 = site.txtget('runpy.html')
+txt2 = site.txtget('/3/tutorial/controlflow.html')
+txt3 = site.txtget('../tutorial/controlflow.html')
+assert txt2 == txt3
+resp = site.post('https://www.imdb.com/ap/signin',
+                 data={'email': 'my@email.com', 'password': 'abcde'})
+if resp.ok:
+    ...
+```
+
 ### Mixin
 
 Simplest way to use `Site` is inherit from it.
