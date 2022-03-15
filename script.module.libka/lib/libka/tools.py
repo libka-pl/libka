@@ -105,7 +105,7 @@ def decode_data(octet):
     return pickle.loads(gzip.decompress(b64decode(octet, b'-_')))
 
 
-def xit(*seq):
+def xstriter(*seq):
     """Yield non-empty items as string."""
     for x in seq:
         if x:
@@ -140,6 +140,9 @@ def get_class_that_defined_method(meth: Callable) -> Type:
                       None)
         if isinstance(cls, type):
             return cls
+    fget = getattr(meth, 'fget', None)  # handle @property
+    if fget:
+        return get_class_that_defined_method(fget)
     return getattr(meth, '__objclass__', None)  # handle special descriptor objects
 
 

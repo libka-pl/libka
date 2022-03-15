@@ -28,11 +28,6 @@ def parse_url(url: str, *, raw: Optional[Set[str]] = None) -> URL:
 
     `raw` are decoded (from pickle+gzip+base64).
     """
-    def parse_val(key, val):
-        if key in raw:
-            return decode_data(val)
-        return val
-
     url = URL(url)
     if raw is None:
         return url
@@ -44,22 +39,6 @@ def parse_url(url: str, *, raw: Optional[Set[str]] = None) -> URL:
             query[key] = decode_data(val)
     url._cache['query'] = MultiDictProxy(query)
     return url
-
-
-def build_parsed_url_str(url):
-    """Helper. Build raw (user readable) URL string."""
-    out = ''
-    if url.scheme:
-        out += f'{url.scheme}:'
-    if url.host:
-        out += '//'
-    out += url.authority
-    out += url.path
-    if url.query:
-        out += f'?{encode_params((k, v) for k, vv in url.query.items() for v in vv)}'
-    if url.fragment:
-        out += f'#{url.fragment}'
-    return out
 
 
 def encode_params(params: Optional[KwArgs] = None, *, raw: Optional[KwArgs] = None) -> str:
@@ -107,6 +86,7 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
     return url % encode_params(params=params, raw=raw)
 
 
+print(f'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  {__name__!r}   <==========')
 if __name__ == '__main__':
     s = encode_url('http://a.b/c/d', params={'e': 42}, raw={'x': set((1, 2, 3))})
     print(f'encoding url: {s!r}')
