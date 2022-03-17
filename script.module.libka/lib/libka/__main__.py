@@ -9,6 +9,7 @@ from . import Plugin, call, PathArg, RawArg, search
 from .lang import text
 from .logs import log
 from . import path as pathmod
+from . import deco
 
 
 xbmc_debug(fake=True, console=True, items=True)
@@ -23,6 +24,8 @@ class MyPlugin(Plugin):
         # self.s2 = Search(addon=self)
         # self.search.set_option(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
         # self.search.set_xml(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
+
+        # self.foo(22)
 
         # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')

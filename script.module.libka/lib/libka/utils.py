@@ -88,10 +88,16 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
 
 if __name__ == '__main__':
     s = encode_url('http://a.b/c/d', params={'e': 42}, raw={'x': set((1, 2, 3))})
-    print(f'encoding url: {s!r}')
+    # print(f'encoding url: {s!r}')
+    assert s == URL(s)
+    assert s == URL('http://a.b/c/d?e=42&x=H4sIAAAAAAAC_2tgmcrNAAH9UzS8Gb2ZvJkn6AEArwccxBYAAAA')
     s = str(s)
-    print(f'encoded url:  {s!r}')
+    # print(f'encoding url: {s!r}')
+    assert s == 'http://a.b/c/d?e=42&x=H4sIAAAAAAAC_2tgmcrNAAH9UzS8Gb2ZvJkn6AEArwccxBYAAAA'
     u = parse_url(s, raw={'x'})
-    print(f'decoded url:  {u!r}')
-    print(f'query:        {u.query!r}')
-    print(f'query "x":    {u.query["x"]!r}')
+    # print(f'decoded url:  {u!r}')
+    assert u == URL('http://a.b/c/d?e=42&x=H4sIAAAAAAAC_2tgmcrNAAH9UzS8Gb2ZvJkn6AEArwccxBYAAAA')
+    # print(f'query:        {u.query!r}')
+    assert u.query == MultiDict(e='42', x={1, 2, 3})
+    # print(f'query "x":    {u.query["x"]!r}')
+    assert u.query["x"] == {1, 2, 3}

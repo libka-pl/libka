@@ -164,6 +164,9 @@ class Aaa:
     def static(): pass
 
 
+def foo(): pass
+
+
 class TestGetClassThatDefinedMethod(TestCase):
 
     def test(self):
@@ -175,6 +178,8 @@ class TestGetClassThatDefinedMethod(TestCase):
         self.assertIs(tools.get_class_that_defined_method(Aaa.clsmeth), Aaa)
         self.assertIs(tools.get_class_that_defined_method(Aaa.static), Aaa)
         self.assertIs(tools.get_class_that_defined_method(partial(Aaa.foo)), Aaa)
+        self.assertIs(tools.get_class_that_defined_method(staticmethod(Aaa.foo)), Aaa)
+        self.assertIsNone(tools.get_class_that_defined_method(foo))
 
 
 class TestCopyFunction(TestCase):
@@ -200,3 +205,73 @@ class TestCopyFunction(TestCase):
         def foo(): pass
         self.assertEqual(tools.copy_function(foo, module=X1).__code__, foo.__code__)
         self.assertIs(tools.copy_function(foo, module=X1).__module__, X1)
+
+
+class TestWrapsClass(TestCase):
+
+    class X:
+        foo = 42
+
+    def test_deco(self):
+        self.assertTrue(callable(tools.wraps_class(TestWrapsClass.X)))
+
+    def test_wrapper(self):
+        with patch('libka.tools.WRAPPER_ASSIGNMENTS', ['foo']):
+            class Y:
+                foo = 1
+            deco = tools.wraps_class(TestWrapsClass.X)
+            deco(Y)
+            self.assertEqual(Y.foo, TestWrapsClass.X.foo)
+
+    def test_missing(self):
+        with patch('libka.tools.WRAPPER_ASSIGNMENTS', ['bar', 'foo']):
+            class Y:
+                foo = 1
+            deco = tools.wraps_class(TestWrapsClass.X)
+            deco(Y)
+            self.assertEqual(Y.foo, TestWrapsClass.X.foo)
+
+
+class TestCallDescr(TestCase):
+
+    def test_make(self):
+        mock = MagicMock(return_value=X1)
+        d = tools.CallDescr(mock)
+        self.assertIs(tools.CallDescr.make(d), d)
+
+    def test_repr(self):
+        mock = MagicMock(return_value=X1, __repr__=lambda x: 'abc')
+        self.assertEqual(repr(tools.CallDescr(mock, (1,), {'b': 2})), "CallDescr(abc, 1, b=2)")
+
+    def test_self(self):
+        class A:
+            def foo(self): pass
+        def foo(): pass
+        a = A()
+        self.assertIs(tools.CallDescr(a.foo).self, a)
+        with patch('libka.tools.CallDescr._get_arg', return_value=X1) as mock:
+            self.assertIs(tools.CallDescr(foo).self, X1)
+            mock.assert_called_once_with('self')
+
+    def test_cls(self):
+        class A:
+            @classmethod
+            def cls(cls): pass
+            def foo(self): pass
+        def foo(): pass
+        a = A()
+        self.assertIs(tools.CallDescr(a.cls).cls, A)
+        self.assertIs(tools.CallDescr(a.foo).cls, A)
+        with patch('libka.tools.CallDescr._get_arg', return_value=X1()) as mock:
+            self.assertIs(tools.CallDescr(A.foo).cls, X1)
+            mock.assert_called_once_with('self')
+        with patch('libka.tools.CallDescr._get_arg', return_value=X1) as mock:
+            self.assertIs(tools.CallDescr(foo).cls, X1)
+            mock.assert_called_once_with('cls')
+
+    def test_get_arg(self):
+        def foo(abc): pass
+        def bar(abc=None): pass
+        self.assertIs(tools.CallDescr(foo, (X1,))._get_arg('abc'), X1)
+        self.assertIs(tools.CallDescr(bar, (), {'abc': X1})._get_arg('abc'), X1)
+

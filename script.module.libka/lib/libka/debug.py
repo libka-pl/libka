@@ -1,10 +1,11 @@
 
-from functools import wraps, WRAPPER_ASSIGNMENTS
+from functools import wraps
 from typing import (
     List, Tuple,
 )
 import time
 from .logs import log as klog
+from .tools import wraps_class
 
 import xbmc
 import xbmcplugin
@@ -20,19 +21,6 @@ log_level_short_name = {
     xbmc.LOGNONE: '---',
     xbmc.LOGWARNING: 'WRN',
 }
-
-
-def wraps_class(src):
-    """Simple class wrapper, like functools.wraps."""
-    def wrapper(cls):
-        for attr in WRAPPER_ASSIGNMENTS:
-            try:
-                setattr(cls, attr, getattr(src, attr))
-            except AttributeError:
-                pass
-        return cls
-
-    return wrapper
 
 
 @wraps(xbmc.log)
