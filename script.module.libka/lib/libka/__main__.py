@@ -4,19 +4,19 @@
 
 import sys
 from .debug import xbmc_debug
-from . import Plugin, call, PathArg, RawArg, search
+from . import SimplePlugin, call, PathArg, RawArg, search
 # from . import Site
 from .lang import text
 from .logs import log
 from . import path as pathmod
-from . import deco
+from .cache import cached
 
 
 xbmc_debug(fake=True, console=True, items=True)
 pathmod.vfs = None
 
 
-class MyPlugin(Plugin):
+class MyPlugin(SimplePlugin):
 
     def __init__(self):
         super().__init__()
@@ -26,6 +26,8 @@ class MyPlugin(Plugin):
         # self.search.set_xml(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
 
         # self.foo(22)
+        data = self.get_gh()
+        print('GH REPO:', data['name'])
 
         # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')
@@ -52,6 +54,12 @@ class MyPlugin(Plugin):
 
         # self.search._add('abc')
         # self.search.clear()
+
+    @cached
+    def get_gh(self):
+        log('Getting... GH')
+        data = self.jget('https://api.github.com/repos/twbs/bootstrap')
+        return data
 
     def home(self):
         with self.directory(type='music') as kd:

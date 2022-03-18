@@ -289,13 +289,19 @@ def do_call(meth: Callable, args: Optional[Args] = None, kwargs: Optional[KwArgs
 
 # Author: Mad Physicist, unutbu, Glenn Maynard
 # See: https://stackoverflow.com/a/49077211/9935708
-def copy_function(f: Callable, *, globals: Optional[Union[bool, AttrDict]] = None,
+def copy_function(f: Callable, *,
+                  globals: Optional[Union[bool, AttrDict]] = None,
+                  defaults: Optional[Tuple[Any]] = None,
                   module: Optional[ModuleType] = None):
     """Function deep copy with global override (dict or `True` for copy)."""
     if globals is None:
         globals = f.__globals__
     elif globals is True:
         globals = copy.copy(f.__globals__)
+    if defaults is None:
+        defaults = f.__defaults__
+    else:
+        defaults = tuple(defaults)
     g = types.FunctionType(f.__code__, globals, name=f.__name__,
                            argdefs=f.__defaults__, closure=f.__closure__)
     g = update_wrapper(g, f)

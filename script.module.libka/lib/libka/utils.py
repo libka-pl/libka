@@ -4,10 +4,10 @@ Libka set of utils.
 Author: rysson + stackoverflow
 """
 
+import re
 from itertools import chain
 from urllib.parse import quote_plus
 from urllib.parse import parse_qsl
-from functools import partial, update_wrapper
 from typing import (
     Optional, Union,
     Set,
@@ -20,6 +20,9 @@ from .tools import (
 )
 from .url import URL
 from multidict import MultiDict, MultiDictProxy
+
+#: Regex type
+regex = type(re.search('', ''))
 
 
 def parse_url(url: str, *, raw: Optional[Set[str]] = None) -> URL:
@@ -84,6 +87,44 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
         url = url.join(URL(path))
 
     return url % encode_params(params=params, raw=raw)
+
+
+def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: int = 0, many: bool = True):
+    """
+    Search regex pattern, return sub-expr(s) or whole found text or default.
+
+    Parameters
+    ----------
+    pattern : str or regex
+        Regex pattern to find.
+    text : str
+        Text where pattern is seached.
+    default : str
+        Default text if pattern is not found.
+    flags : int
+        Regex flags like `re.IGNORECASE`.
+    many : bool
+        Returns all groups if there is more then one sub-expr.
+
+    Pattern can be text (str or unicode) or compiled regex.
+
+    When no sub-expr defined returns whole matched text (whole pattern).
+    When one sub-expr defined returns sub-expr.
+    When many sub-exprs defined returns all sub-exprs if `many` is True else first sub-expr.
+
+    Of course unnamed sub-expr (?:...) doesn't matter.
+    """
+    if not isinstance(pattern, regex):
+        pattern = re.compile(pattern, flags)
+    rx = pattern.search(text)
+    if not rx:
+        return default
+    groups = rx.groups()
+    if not groups:
+        rx.group(0)
+    if len(groups) == 1 or not many:
+        return groups[0]
+    return groups
 
 
 if __name__ == '__main__':
