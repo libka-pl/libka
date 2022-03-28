@@ -406,9 +406,11 @@ class Router:
             t = None if p is None else hints.get(p.name)
             if t is not None:
                 t = remove_optional(t)
-                if (x := PathArg.subtype(t)) is not None:
+                x = PathArg.subtype(t)
+                if x is not None:
                     t = x
-                if (x := RawArg.subtype(t, Any)) is not None:
+                x = RawArg.subtype(t, Any)
+                if x is not None:
                     t = x
                 ot = get_origin(t)
                 if p.kind == p.VAR_POSITIONAL:
@@ -521,7 +523,8 @@ class Router:
             params.update(raw)
         # search in entry(path=)
         for route in self.routes:
-            if (r := route.regex.fullmatch(url.path)):
+            r = route.regex.fullmatch(url.path)
+            if r:
                 for k, v in r.groupdict().items():
                     if k[:1] == '_' and k[1:].isdigit():
                         k = int(k[1:])

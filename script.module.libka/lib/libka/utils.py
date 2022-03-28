@@ -250,7 +250,10 @@ def encode_url(url: Union[str, ParsedUrl], path: Optional[Union[str, Path]] = No
     if isinstance(url, str):
         if path is not None:
             r = parse_url.re.fullmatch(url)
-            if not r or ((port := r['port']) and not port.isdigit()):
+            if not r:
+                raise ValueError(f'Invalid URL {url!r}')
+            port = r['port']
+            if port and not port.isdigit():
                 raise ValueError(f'Invalid URL {url!r}')
             old = r['path']
             n = r.start('path')

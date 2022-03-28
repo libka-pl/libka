@@ -12,7 +12,9 @@
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/libka-pl/libka/script.module.libka</source>
-		<news>v0.0.15
+		<news>v0.0.16
+- Support for Python 3.7.
+v0.0.15
 - Fix RawArgs.
 v0.0.14
 - Fix stroage (and search) save for Windows.</news>
