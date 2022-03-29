@@ -1,6 +1,12 @@
+libka (0.0.17) unstable; urgency=low
+
+  * Fix upport for Python 3.7. Fixes #18.
+
+ -- Robert Kalinowski <robert.kalinowski@sharkbits.com>  Tue, 29 Mar 2022 19:23:08 +0200
+
 libka (0.0.16) unstable; urgency=low
 
-  * Support for Python 3.7. Closes #18.
+  * Add support for Python 3.7. Closes #18.
 
  -- Robert Kalinowski <robert.kalinowski@sharkbits.com>  Mon, 28 Mar 2022 23:20:36 +0200
 

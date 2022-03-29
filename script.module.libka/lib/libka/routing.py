@@ -12,9 +12,13 @@ from typing import (
     TypeVar, Generic,
     overload,
     Union, Optional, Callable, Any,
-    get_type_hints, get_args, get_origin,
+    get_type_hints,
     Dict, List, Tuple,
 )
+if sys.version_info >= (3, 8):
+    from typing import get_origin, get_args
+else:
+    from .py37 import get_origin, get_args
 from .logs import log
 from .utils import parse_url, encode_url, ParsedUrl
 from .types import (
