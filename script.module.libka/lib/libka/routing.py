@@ -191,8 +191,8 @@ class Router:
             if callable(method):
                 label = getattr(method, '__name__', method.__class__.__name__)
                 look_4_entries = [method]
-                if not ismethod(endpoint) and not isfunction(endpoint):
-                    look_4_entries.append(endpoint.__call__)
+                if not ismethod(method) and not isfunction(method):
+                    look_4_entries.append(method.__call__)
                 for func in look_4_entries:
                     entry = getattr(func, '_libka_endpoint', None)
                     if entry is not None:
