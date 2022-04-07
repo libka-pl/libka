@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path as PyPath
 try:
     import xbmcvfs as vfs
 except ImportError:
@@ -277,10 +278,24 @@ class Path(str):
         (same behavior as the POSIX rm -f command).
         """
         if vfs is None:
-            os.unlink(self)
+            try:
+                os.unlink(self)
+            except FileNotFoundError:
+                if not missing_ok:
+                    raise
         else:
             if not vfs.delete(self) and (not missing_ok or self.exists()):
                 raise IOError('Can not remove {!r}'.format(str(self)))
+
+    def glob(self, pattern):
+        """
+        Glob the given relative pattern in the directory represented by this path, yielding all matching files.
+
+        Patterns are the same as for fnmatch, with the addition of “**” which means “this directory
+        and all subdirectories, recursively”.
+        """
+        # TODO: use xbmcvfs.listdir() if avaliable
+        return PyPath(self).glob(pattern)
 
     # TODO: maybe add xbmcvfs sepcific functions: copy(), listdir()?
 

@@ -7,6 +7,7 @@ from typing import (
     Union, Optional, Callable, Any,
     List,
 )
+from .base import BaseAddonMixin
 from .utils import parse_url
 from .settings import Settings
 from .search import Search
@@ -33,7 +34,7 @@ class Request:
         self.params = self.url.query
 
 
-class Addon:
+class Addon(BaseAddonMixin):
     """
     Abstract Libka Addon.
 
@@ -87,8 +88,6 @@ class Addon:
         self.search = Search(self)
         #: Default userdata
         self.user_data = Storage(addon=self)
-        #: Defined routes.
-        self._routes = []
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
         self.colors = {
             'gray': 'gray',
@@ -101,10 +100,6 @@ class Addon:
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.id!r}, {str(self.req.url)!r})'
-
-    def info(self, key):
-        """Get XBMC addon info (like "path", "version"...)."""
-        return self.xbmc_addon.getAddonInfo(key)
 
     @property
     def media(self):

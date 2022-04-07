@@ -4,7 +4,7 @@ Some useful decorators.
 
 from functools import wraps
 from .logs import log
-from .tools import get_class_that_defined_method, do_call, CallDescr
+from .tools import do_call, CallDescr
 import xbmc
 
 
