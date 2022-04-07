@@ -2,8 +2,12 @@ from typing import (
     Union, Optional, TypeVar,
     Callable, Any,
     Tuple, Dict,
-    get_origin, get_args,
 )
+import sys
+if sys.version_info >= (3, 8):
+    from typing import get_origin, get_args
+else:
+    from .py37 import get_origin, get_args
 from inspect import signature
 from collections import namedtuple
 

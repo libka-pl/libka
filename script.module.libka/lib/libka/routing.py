@@ -12,9 +12,13 @@ from typing import (
     TypeVar, Generic,
     overload,
     Union, Optional, Callable, Any,
-    get_type_hints, get_args, get_origin,
+    get_type_hints,
     Dict, List, Tuple,
 )
+if sys.version_info >= (3, 8):
+    from typing import get_origin, get_args
+else:
+    from .py37 import get_origin, get_args
 from .logs import log
 from .utils import parse_url, encode_url
 from .url import URL
@@ -192,8 +196,8 @@ class Router:
             if callable(method):
                 label = getattr(method, '__name__', method.__class__.__name__)
                 look_4_entries = [method]
-                if not ismethod(endpoint) and not isfunction(endpoint):
-                    look_4_entries.append(endpoint.__call__)
+                if not ismethod(method) and not isfunction(method):
+                    look_4_entries.append(method.__call__)
                 for func in look_4_entries:
                     entry = getattr(func, '_libka_endpoint', None)
                     if entry is not None:
@@ -411,9 +415,11 @@ class Router:
             t = None if p is None else hints.get(p.name)
             if t is not None:
                 t = remove_optional(t)
-                if (x := PathArg.subtype(t)) is not None:
+                x = PathArg.subtype(t)
+                if x is not None:
                     t = x
-                if (x := RawArg.subtype(t, Any)) is not None:
+                x = RawArg.subtype(t, Any)
+                if x is not None:
                     t = x
                 ot = get_origin(t)
                 if p.kind == p.VAR_POSITIONAL:
@@ -530,7 +536,8 @@ class Router:
             params.update(raw)
         # search in entry(path=)
         for route in self.routes:
-            if (r := route.regex.fullmatch(url.path)):
+            r = route.regex.fullmatch(url.path)
+            if r:
                 for k, v in r.groupdict().items():
                     if k[:1] == '_' and k[1:].isdigit():
                         k = int(k[1:])
