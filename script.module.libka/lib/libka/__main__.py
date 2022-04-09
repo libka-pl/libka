@@ -26,9 +26,9 @@ class MyPlugin(SimplePlugin):
         # self.search.set_xml(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
 
         # self.foo(22)
-        data = self.get_gh()
-        print('GH REPO:', data['name'])
-        return
+        # data = self.get_gh()
+        # print('GH REPO:', data['name'])
+        # return
 
         # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')

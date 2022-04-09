@@ -207,6 +207,7 @@ class Router:
                             title = entry.title
                         if entry.style is not None:
                             fmt = entry.style
+        breakpoint()
         if isinstance(method, str):
             url = method  # TODO: analyse this case, method name should be converted to URL or leave as is?
         else:

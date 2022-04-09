@@ -13,7 +13,7 @@ end of `libka.addon.Addon.run()` method, even if exception raises.
 """
 
 from typing import (
-    Union, Any,
+    Optional, Union, Any,
     Tuple, List, Dict,
 )
 from contextlib import contextmanager
@@ -25,6 +25,7 @@ from .base import BaseAddon
 from .path import Path
 from .registry import register_singleton
 from .logs import log
+from .serializer import SerializerType
 from .serializer.json import Json
 from .serializer.pickle import Pickle
 from .serializer.module import Module
@@ -72,8 +73,9 @@ class Storage:
         json: Json,
     }
 
-    def __init__(self, path=None, *, addon, default: Any = None, sync: bool = False, pretty: bool = True,
-                 serializer=None):
+    def __init__(self, path: Optional[Union[Path, str]] = None, *, addon: BaseAddon, default: Optional[Any] = None,
+                 sync: Optional[bool] = False, pretty: Optional[bool] = True,
+                 serializer: Optional[Union[SerializerType, str]] = None):
         # Guess data serializer.
         if serializer is None:
             serializer = Json
@@ -90,7 +92,7 @@ class Storage:
         if isinstance(path, str):
             path = path.format(suffix=suffix)
         #: Addon.
-        self.addon = BaseAddon() if addon is None else addon
+        self.addon: BaseAddon = BaseAddon() if addon is None else addon
         #: Seriazier object (ex. JSON, Pickle).
         self.serializer = serializer
         #: Base path to folder with storage. Lazy loaded.
@@ -293,8 +295,11 @@ class MultiStorage(Storage):
     Storage with several parts (ex. files). API is the same.
     """
 
-    def __init__(self, path=None, *, addon, default: Any = None, sync: bool = False, pretty: bool = True,
-                 serializer=None):
+    def __init__(self, path: Optional[Union[Path, str]] = None, *, addon: BaseAddon, default: Optional[Any] = None,
+                 sync: Optional[bool] = False, pretty: Optional[bool] = True,
+                 serializer: Optional[Union[SerializerType, str]] = None, hint: Optional[str] = None):
+
+        # NOTE.
         # There is no base Storage() constructor called. There is not `super().__init__`.
         # Handle single or multi files is different.
 
@@ -314,9 +319,9 @@ class MultiStorage(Storage):
         if isinstance(path, str):
             path = path.format(suffix=suffix)
         #: Addon.
-        self.addon = BaseAddon() if addon is None else addon
+        self.addon: BaseAddon = BaseAddon() if addon is None else addon
         #: Seriazier object (ex. JSON, Pickle).
-        self.serializer = serializer
+        self.serializer: SerializerType = serializer
         #: Base path to folder with storage. Lazy loaded.
         self._base: Path = None
         #: Default suffix for file(s).
@@ -328,7 +333,7 @@ class MultiStorage(Storage):
         #: If true data are saved after every `Storage.set()` and `Storage.remove()`.
         self.sync: bool = sync
         #: Pretty serializer format. Not used now.
-        self.pretty = pretty
+        self.pretty: bool = pretty
         #: Storages.
         self._storages: Dict[str, Storage] = {}
 
