@@ -314,3 +314,15 @@ def copy_function(f: Callable, *,
 # Author: MacSanhe
 # See: https://stackoverflow.com/a/43879552/9935708
 # See: https://github.com/MacHu-GWU/inspect_mate-project
+
+
+def add_url_scheme(scheme):
+    """Add scheme as netloc realtive, then the scheme works as http in urljoin()."""
+    from urllib.parse import uses_relative, uses_netloc
+    if isinstance(scheme, str):
+        scheme = (scheme,)
+    for s in scheme:
+        if s not in uses_relative:
+            uses_relative.append(s)
+        if s not in uses_netloc:
+            uses_netloc.append(s)

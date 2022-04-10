@@ -13,6 +13,9 @@ __version__ = '0.0.20'
 # Add paths to 3rd-party libs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '3rd'))
 
+# Enable kodi-specific url schemes in utllib.parse.
+from .tools import add_url_scheme  # noqa E402
+add_url_scheme(['plugin', 'special', 'library'])
 
 from .addon import Addon, Plugin  # noqa E402
 from .site import Site            # noqa E402

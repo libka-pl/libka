@@ -81,7 +81,6 @@ def _bind_args(func: Callable, args: Tuple[Any], kwargs: Dict[str, Any],
     try:
         sig = signature(func)
     except TypeError:
-        breakpoint()
         if not callable(func):
             raise
         sig = signature(func.__call__)
