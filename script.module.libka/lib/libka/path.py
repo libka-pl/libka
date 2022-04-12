@@ -297,6 +297,15 @@ class Path(str):
         # TODO: use xbmcvfs.listdir() if avaliable
         return PyPath(self).glob(pattern)
 
+    def parts(self):
+        """
+        A tuple giving access to the path’s various components:
+        >>> p = PurePath('/usr/bin/python3')
+        >>> p.parts
+        ('/', 'usr', 'bin', 'python3')
+        """
+        return PyPath(self).parts
+
     # TODO: maybe add xbmcvfs sepcific functions: copy(), listdir()?
 
 
