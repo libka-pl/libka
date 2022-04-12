@@ -29,8 +29,18 @@ URL('https://host.com/api/%s/%03d' % ('foo', 42))
 
 from sys import getdefaultencoding
 from inspect import isfunction, isdatadescriptor
+from urllib.parse import urljoin
 import yarl
 from .tools import copy_function
+
+
+def _URL__floordiv__(self, name):
+    """Url join as `url // name`. Shortcut for `self.join(URL(name))`."""
+    return yarl.URL(urljoin(str(self), str(name)), encoded=True)
+
+
+# Url join: url // name
+yarl.URL.__floordiv__ = _URL__floordiv__
 
 
 class MISSING:
