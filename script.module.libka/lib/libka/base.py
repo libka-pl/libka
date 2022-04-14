@@ -26,6 +26,14 @@ class BaseAddonMixin:
         return self.xbmc_addon.getAddonInfo(key)
 
     @property
+    def addon_path(self) -> Path:
+        """Path to addon (unziped) folder."""
+        if self._profile_path is None:
+            path = self.xbmc_addon.getAddonInfo('path')
+            self._profile_path = Path(translatePath(path))
+        return self._profile_path
+
+    @property
     def profile_path(self) -> Path:
         """Path to addon profile folder."""
         if self._profile_path is None:

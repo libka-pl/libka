@@ -154,7 +154,8 @@ class Site:
     def __init__(self, *args, **kwargs):
         base = kwargs.pop('base', None)
         #: Base site URL.
-        self.base = None if base is None else (URL(base) / '')
+        # self.base = None if base is None else (URL(base) / '')  XXX ????????????????????? WTF
+        self.base = None if base is None else URL(base)
         #: Requests session.
         self._sess = None
         #: Path to cookie file or None.
@@ -193,9 +194,12 @@ class Site:
             verify = self.verify_ssl
         if worker is None:
             worker = self.site_request_worker
-        url = URL(url)
-        if not url.is_absolute():
-            url = self.base.join(url)
+        if url:
+            url = URL(url)
+            if not url.is_absolute():
+                url = self.base.join(url)
+        else:
+            url = self.base
         if isinstance(params, Mapping):
             url, params = encode_url(url, params=params), None
 
