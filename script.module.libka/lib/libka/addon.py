@@ -179,7 +179,7 @@ class Addon(BaseAddonMixin):
         try:
             text = self._RE_TITLE_COLOR.sub(get_color, text)
         except TypeError:
-            log.error(f'Incorect label/title type {type(text)}')
+            log.error(f'Incorrect label/title type {type(text)}')
             raise
         return text
 
@@ -193,7 +193,9 @@ class Addon(BaseAddonMixin):
 
     def refresh(self, endpoint=None):
         """Execute Kodi build-in command."""
-        xbmc.executebuiltin('Container.Refresh(%s)' % (endpoint or ''))
+        if callable(endpoint) or isinstance(endpoint, Call):
+            endpoint = self.mkurl(endpoint)
+        xbmc.executebuiltin(f'Container.Refresh({endpoint or ""})')
 
     def get_default_art(self, name):
         """Returns path to default art."""

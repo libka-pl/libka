@@ -102,7 +102,7 @@ class TraceLogger:
                 self.__old_trace = sys.getprofile()
                 sys.setprofile(self.log_trace)
             else:
-                assert False, 'Incorect details level ({})'.format(self.__details)
+                assert False, 'Incorrect details level ({})'.format(self.__details)
                 return
             self.__runing = True
 
@@ -115,7 +115,7 @@ class TraceLogger:
             elif self.__details == TRACE_CALL:
                 sys.setprofile(self.__old_trace)
             else:
-                assert False, 'Incorect details level ({})'.format(self.__details)
+                assert False, 'Incorrect details level ({})'.format(self.__details)
             self.__old_trace = None
             self.__runing = False
 

@@ -1,6 +1,7 @@
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
+from contextlib import contextmanager
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
@@ -42,7 +43,7 @@ class ListItem:
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True):
+    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, custom=None):
         if isinstance(name, xbmcgui.ListItem):
             self._libka_item = name
         else:
@@ -52,6 +53,7 @@ class ListItem:
         self.type = type
         self._info = {}
         self._props = {}
+        self.custom = custom
         if self.type is not None:
             self._libka_item.setInfo(self.type, self._info)
 
@@ -326,6 +328,21 @@ class AddonDirectory:
         xbmcplugin.endOfDirectory(self.addon.handle, succeeded=success,
                                   updateListing=self.update, cacheToDisc=self.cache)
 
+    def sort_items(self, *, key=None, reverse=False):
+        """
+        Sort items **before** `AddonDirectory.close()`.
+
+        Return a new list containing all items from the iterable in ascending order.
+
+        A custom key function can be supplied to customize the sort order, and the
+        reverse flag can be set to request the result in descending order.
+        """
+        if key is None:
+            def key(item):
+                return item.label
+
+        self.item_list.sort(key=lambda item: key(item.item), reverse=reverse)
+
     def _find_auto_sort(self):
         """Helper. Sort method auto generator."""
         try:
@@ -386,7 +403,7 @@ class AddonDirectory:
     def new(self, _name, endpoint=None, *, offscreen=None, folder=False, playable=False,
             label=None, title=None, descr=None, format=None, style=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
-            type=None, info=None, art=None, season=None, episode=None, label2=None):
+            type=None, info=None, art=None, season=None, episode=None, label2=None, custom=None):
         """
         Create new list item, can be added to current directory list.
 
@@ -440,6 +457,8 @@ class AddonDirectory:
             Season number or None if not a season nor an episode.
         episode : int
             Episode number or None if not an episode.
+        custom: any
+            Custom filed, holt only in libka drirectory, not used in the Kodi
 
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
         """
@@ -455,8 +474,11 @@ class AddonDirectory:
         entry = self.router.mkentry(_name, endpoint, title=title, style=style)
         label = entry.label
         if label is None:
-            label = entry.title
-        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen)
+            if entry.title is None:
+                label = str(entry.url)
+            else:
+                label = entry.title
+        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen, custom=custom)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -629,6 +651,57 @@ class AddonDirectory:
     #         pass
     #     finally:
     #         pass
+
+    @contextmanager
+    def items_block(self):
+        block = AddonDirectoryBlock(self)
+        try:
+            yield block
+        except Exception:
+            ...
+            raise
+        finally:
+            pass
+
+
+class AddonDirectoryBlock:
+    """
+    Block of items added to folder `AddonDirectory`.
+    """
+
+    _AddonDirectoryMethods = {'new', 'add', 'item', 'folder', 'play'}
+
+    def __init__(self, directory):
+        self.directory = directory
+        self.start = len(self.directory.item_list)
+
+    def sort_items(self, *, key=None, reverse=False):
+        """
+        Sort items added in the block.
+
+        Return a new list containing all items from the iterable in ascending order.
+
+        A custom key function can be supplied to customize the sort order, and the
+        reverse flag can be set to request the result in descending order.
+        """
+        if key is None:
+            def key(item):
+                return item.label
+
+        if len(self.directory.item_list) > self.start:
+            self.directory.item_list[self.start:] = sorted(self.directory.item_list[self.start:],
+                                                           key=lambda item: key(item.item), reverse=reverse)
+
+    def item_count(self):
+        """
+        Returns number of items on the list block.
+        """
+        return len(self.item_list) - self.start
+
+    def __getattr__(self, key):
+        if key in self._AddonDirectoryMethods:
+            return getattr(self.directory, key)
+        raise KeyError(key)
 
 
 class AddonContextMenu(list):
