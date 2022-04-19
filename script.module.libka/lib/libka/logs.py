@@ -17,19 +17,19 @@ def log(*msg, sep=' ', title=None, level=None):
 
 
 def log_error(*msg, sep=' ', title=None):
-    log(msg, level=xbmc.LOGERROR)
+    log(*msg, level=xbmc.LOGERROR)
 
 
 def log_warning(*msg, sep=' ', title=None):
-    log(msg, level=xbmc.LOGWARNING)
+    log(*msg, level=xbmc.LOGWARNING)
 
 
 def log_info(*msg, sep=' ', title=None):
-    log(msg, level=xbmc.LOGINFO)
+    log(*msg, level=xbmc.LOGINFO)
 
 
 def log_debug(*msg, sep=' ', title=None):
-    log(msg, level=xbmc.LOGDEBUG)
+    log(*msg, level=xbmc.LOGDEBUG)
 
 
 log.error = log_error
