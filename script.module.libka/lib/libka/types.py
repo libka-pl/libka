@@ -10,6 +10,7 @@ else:
     from .py37 import get_origin, get_args
 from inspect import signature
 from collections import namedtuple
+import re
 
 
 # type aliases
@@ -32,6 +33,9 @@ def remove_optional(ann: Union[Optional[T], T]) -> T:
     if get_origin(ann) is Union and len(args) == 2 and args[1] is type(None):  # noqa E721
         return args[0]
     return ann
+
+
+regex = type(re.compile(''))
 
 
 Arguments = namedtuple('Arguments', 'args kwargs arguments positional indexes defaults')

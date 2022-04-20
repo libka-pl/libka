@@ -3,11 +3,11 @@ Register common global objects.
 """
 
 from typing import (
-    Optional, Union, Any,
-    List, Dict,
+    Optional, Any,
+    Dict,
 )
 from collections.abc import Callable
-from functools import wraps
+# from functools import wraps
 
 
 class Registry:
@@ -30,7 +30,7 @@ class Registry:
         try:
             factory = self._factory[name]
         except KeyError:
-            raise KeyError(f'Missing factory for instance {name}') from None
+            raise AttributeError(f'Missing factory for instance {name}') from None
         instance = factory()
         self._instances[name] = instance
         return instance

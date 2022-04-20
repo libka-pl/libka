@@ -43,7 +43,7 @@ class ListItem:
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, custom=None):
+    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, sort_key=None, custom=None):
         if isinstance(name, xbmcgui.ListItem):
             self._libka_item = name
         else:
@@ -53,6 +53,7 @@ class ListItem:
         self.type = type
         self._info = {}
         self._props = {}
+        self.sort_key = sort_key
         self.custom = custom
         if self.type is not None:
             self._libka_item.setInfo(self.type, self._info)
@@ -257,6 +258,7 @@ class AddonDirectory:
         self.cache = cache
         self.update = update
         self.offscreen = offscreen
+        self._next_sort_key = None
         handler = getattr(self.addon, 'on_directory_enter', None)
         if handler is not None:
             handler(self)
@@ -403,7 +405,7 @@ class AddonDirectory:
     def new(self, _name, endpoint=None, *, offscreen=None, folder=False, playable=False,
             label=None, title=None, descr=None, format=None, style=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
-            type=None, info=None, art=None, season=None, episode=None, label2=None, custom=None):
+            type=None, info=None, art=None, season=None, episode=None, label2=None, sort_key=None, custom=None):
         """
         Create new list item, can be added to current directory list.
 
@@ -457,6 +459,8 @@ class AddonDirectory:
             Season number or None if not a season nor an episode.
         episode : int
             Episode number or None if not an episode.
+        sort_key: any
+            Custom sort key, holt only in libka drirectory, not used in the Kodi
         custom: any
             Custom filed, holt only in libka drirectory, not used in the Kodi
 
@@ -469,6 +473,8 @@ class AddonDirectory:
             type = 'video' if self.type is None else self.type
         if style is None:
             style = self.style
+        if sort_key is None:
+            sort_key = self._next_sort_key
         if label is not None and endpoint is None:
             _name, endpoint = label, _name
         entry = self.router.mkentry(_name, endpoint, title=title, style=style)
@@ -478,7 +484,8 @@ class AddonDirectory:
                 label = str(entry.url)
             else:
                 label = entry.title
-        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen, custom=custom)
+        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen,
+                        sort_key=sort_key, custom=custom)
         if folder is True:
             item.setIsFolder(folder)
         if label2 is not None:
@@ -655,12 +662,14 @@ class AddonDirectory:
     @contextmanager
     def items_block(self):
         block = AddonDirectoryBlock(self)
+        next_sort_key = self._next_sort_key
         try:
             yield block
         except Exception:
             ...
             raise
         finally:
+            self._next_sort_key = next_sort_key
             pass
 
 
@@ -674,6 +683,7 @@ class AddonDirectoryBlock:
     def __init__(self, directory):
         self.directory = directory
         self.start = len(self.directory.item_list)
+        self._sort_key = None
 
     def sort_items(self, *, key=None, reverse=False):
         """
@@ -686,7 +696,9 @@ class AddonDirectoryBlock:
         """
         if key is None:
             def key(item):
-                return item.label
+                if item.sort_key is None:
+                    return item.label
+                return item.sort_key
 
         if len(self.directory.item_list) > self.start:
             self.directory.item_list[self.start:] = sorted(self.directory.item_list[self.start:],
@@ -699,9 +711,18 @@ class AddonDirectoryBlock:
         return len(self.item_list) - self.start
 
     def __getattr__(self, key):
+        """
+        All unknown attrobutes are forwarded to `AddonDirectory` (include methods).
+        """
         if key in self._AddonDirectoryMethods:
             return getattr(self.directory, key)
         raise KeyError(key)
+
+    def set_sort_key(self, sort_key):
+        """
+        Set default sort key for all next new items.
+        """
+        self.directory._next_sort_key = sort_key
 
 
 class AddonContextMenu(list):

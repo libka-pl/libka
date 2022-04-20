@@ -16,6 +16,7 @@ from .resources import Resources
 from .storage import Storage
 from .folder import AddonDirectory
 from .routing import Router, subobject, DirEntry, Call
+from .menu import MenuMixin
 from .commands import Commands
 from .format import SafeFormatter
 import xbmc
@@ -34,7 +35,7 @@ class Request:
         self.params = self.url.query
 
 
-class Addon(BaseAddonMixin):
+class Addon(MenuMixin, BaseAddonMixin):
     """
     Abstract Libka Addon.
 
