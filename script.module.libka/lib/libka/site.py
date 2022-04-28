@@ -9,10 +9,11 @@ See: https://docs.python-requests.org/en/latest/user/quickstart/
 
 from typing import (
     TYPE_CHECKING,
-    Union, Any,
+    Optional, Union, Any,
 )
 from functools import wraps
 from collections.abc import Mapping
+from contextlib import contextmanager
 import requests
 import json as jsonlib
 from requests.exceptions import SSLError
@@ -29,7 +30,11 @@ from certifi import where
 from http.cookiejar import LWPCookieJar
 from .utils import encode_url, encode_params
 from .url import URL
+from .threads import ThreadPool
+from inspect import ismethod
 from .logs import log
+if TYPE_CHECKING:
+    from .path import Path
 
 
 class Undefined:
@@ -119,9 +124,9 @@ def _resp_failed(on_fail):
     return on_fail
 
 
-class Site:
+class SiteMixin:
     """
-    Access to sbstract site mixin.
+    Access to abstract site mixin.
 
     Site(base=None)
 
@@ -131,18 +136,15 @@ class Site:
         Base site URL.
     cookiefile: str or Path
         Path to cookiejar file.
+    verify_ssl: bool
+        Verify SSL if true (default), ot ignore if false.
 
-    Can be used as variable.
-    >>> class MyAddon(Addon):
-    ...    def __init__(self):
-    ...        super(MyAddon, self).__init__()
-    ...        self.site = Site(base='URL')
-    ...        self.site.jget('https://very.good.url/')
+    Can be used as variable, but better use Site.
 
     Can be used as mixin too like in `libka.SimplePlugin`.
-    >>> class MyAddon(Site, Addon):
+    >>> class MyAddon(SiteMixin, Addon):
     ...    def __init__(self):
-    ...        super(MyAddon, self).__init__(base='URL')
+    ...        super().__init__(base='https://my.site')
     ...        self.jget('https://very.good.url/')
     """
 
@@ -161,13 +163,13 @@ class Site:
         #: Path to cookie file or None.
         self.cookiefile = kwargs.pop('cookiefile', None)
         #: True if SSL should be verified
-        self.verify_ssl = self.VERIFY_SSL
+        self.verify_ssl = kwargs.pop('verify_ssl', self.VERIFY_SSL)
         #: User-Agent.
         self.ua = self.UA
         #: Option to use request worker (ex. `urllib3` instead of default requests).
         self.site_request_worker = None
         # --- call next contractor if Site is used as a mixin ---
-        super(Site, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @property
     def sess(self):
@@ -379,18 +381,167 @@ class Site:
         except Exception:
             return _resp_failed(on_fail)
 
+    @contextmanager
+    def concurrent(self):
+        """
+        Concurrent site request API `with` block.
 
-# def getRequests3(url, data=None, headers=None, params=None):
-#     if not goptions.use_urllib3:
-#         # force use requests
-#         return getRequests(url, data=data, headers=headers, params=params)
-#     try:
-#         return _getRequests3(url, data=data, headers=headers, params=params)
-#     except MaxRetryError as exc:
-#         if not isinstance(exc.reason, SSLError3):
-#             raise
-#         with goptions:
-#             goptions.ssl_dialog(using_urllib3=True)
-#             if not goptions.use_urllib3:
-#                 return getRequests(url, data=data, headers=headers, params=params)
-#     return _getRequests3(url, data=data, headers=headers, params=params)
+        Allow call many concurrent site requests and get theirs results in easy way.
+        The results are available by the same request names after the `with` statement.
+
+        >>> site = Site('https://my.site/api/')
+        >>> with site.concurrent() as con:
+        ...     con.a.jget('endpoint_a')
+        ...     con.b.jpost('endpoint_b', json={})
+        >>> print(con.a, con.b)  # JSON results
+
+        It's also possible to create unnamed requests.
+
+        >>> site = Site('https://my.site/api/')
+        >>> with site.concurrent() as con:
+        ...     for url in ulr_list:
+        ...         con[...].jget(url)
+        >>> print(con[0])     # First JSON result
+        >>> print(list(con))  # All JSON results
+
+        To override a site instance in concurrent block call an item with the site.
+
+        >>> site = Site('https://my.site/api/')
+        >>> another_site = Site('https://my.another.site')
+        >>> with site.concurrent() as con:
+        ...     con.a.jget('endpoint_a')                # my.site/api/endpoint_a
+        ...     con.c(another_site).jget('endpoint_c')  # my.another.site/endpoint_c
+
+        Any concurrent item (named or not) has a full `SiteMixin` API.
+        """
+        con = SiteConcurrent(site=self)
+        try:
+            yield con
+        finally:
+            con._close()
+
+
+class Site(SiteMixin):
+    """
+    Access to a site.
+
+    Site()
+
+    Parameters
+    ----------
+    base: str
+        Base site URL.
+    cookiefile: str or Path
+        Path to cookiejar file.
+    verify_ssl: bool
+        Verify SSL if true (default), or ignore if false.
+
+    Can be used as variable.
+    >>> class MyAddon(Addon):
+    ...    def __init__(self):
+    ...        super().__init__()
+    ...        self.site = Site('URL')
+    ...        self.site.jget('https://very.good.url/')
+
+    Can be used as mixin too like in `libka.SimplePlugin`.
+    >>> class MyAddon(SiteMixin, Addon):
+    ...    def __init__(self):
+    ...        super().__init__(base='https://my.site')
+    ...        self.jget('https://very.good.url/')
+
+    See: SiteMixin
+    """
+
+    def __init__(self, base: Optional[Union[URL, str]] = None, *, cookiefile: Optional[Union['Path', str]] = None,
+                 verify_ssl: Optional[bool] = None):
+        kwargs = {}
+        if verify_ssl is not None:
+            kwargs['verify_ssl'] = verify_ssl
+        super().__init__(base=base, cookiefile=cookiefile, **kwargs)
+
+
+class SiteConcurrentItem:
+    """Helper. Single thread item in `SiteConcurrent`."""
+
+    def __init__(self, *, concurrent, site):
+        self.concurrent = concurrent
+        self.site = site
+        self.thread = None
+
+    def __call__(self, site):
+        self.site = site
+        return self
+
+    def __getattr__(self, key):
+        def concurent_call(*args, **kwargs):
+            self.thread = self.concurrent._pool.start(attr, *args, **kwargs)
+
+        if key[:1] == '_':
+            raise AttributeError(key)
+        attr = getattr(self.site, key)
+        if ismethod(attr):
+            return concurent_call
+        else:
+            return attr
+
+
+class SiteConcurrent:
+    """
+    Concurrent site request API.
+
+    See `SiteMixin.concurrent`.
+    """
+
+    def __init__(self, *, site):
+        self._site = site
+        self._pool = ThreadPool()
+        self._active = True
+        self._item_dict = {}
+        self._item_list = []
+
+    def __getattr__(self, key):
+        if key[:1] == '_':
+            raise AttributeError(key)
+        if not self._active:
+            return self._item_dict[key].thread.result
+        if key in self._item_dict:
+            return self._item_dict[key]
+        self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
+        self._item_list.append(item)
+        return item
+
+    def __getitem__(self, key):
+        if not self._active:
+            return self._item_list[key].thread.result
+        if key == len(self._item_list):
+            key = ...
+        if type(key) is int:
+            return self._item_list[key]
+        item = SiteConcurrentItem(concurrent=self, site=self._site)
+        if isinstance(key, SiteMixin):
+            item.site = key
+        self._item_list.append(item)
+        return item
+
+    def __call__(self, site: Optional[SiteMixin] = None):
+        if not self._active:
+            log.error('Call non active SiteConcurrent()')
+            return
+        if site is None:
+            site = self._site
+        item = SiteConcurrentItem(concurrent=self, site=site)
+        self._item_list.append(item)
+        return item
+
+    def __len__(self):
+        return len(self._item_list)
+
+    def _close(self):
+        self._pool.close()
+        self._active = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close()

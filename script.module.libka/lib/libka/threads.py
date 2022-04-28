@@ -59,11 +59,13 @@ class ThreadPool:
     def start(self, func, *args, **kwargs):
         th = ThreadCall.started(func, *args, **kwargs)
         self.thread_list.append(th)
+        return th
 
     def start_with_id(self, id, func, *args, **kwargs):
         th = ThreadCall.started(func, *args, **kwargs)
         self.thread_list.append(th)
         self.thread_by_id[id] = th
+        return th
 
     def join(self):
         for th in self.thread_list:

@@ -4,7 +4,7 @@
 
 import sys
 from .debug import xbmc_debug
-from . import SimplePlugin, call, PathArg, RawArg, search
+from . import SimplePlugin, Site, call, PathArg, RawArg, search
 # from . import Site
 from .lang import text
 from .logs import log
@@ -29,6 +29,23 @@ class MyPlugin(SimplePlugin):
         # data = self.get_gh()
         # print('GH REPO:', data['name'])
         # return
+
+        self.site = Site()
+        another_site = Site('https://doc.libka.pl/libka/')
+        with self.site.concurrent() as con:
+            con.aa.txtget('https://docs.python.org/3/library')
+            con.bb.txtget('https://mit-license.org')
+            con.cc(another_site).txtget('utils.html')
+        print(len(con.aa), len(con.bb), len(con.cc))
+
+        with self.concurrent() as con:
+            con[...].txtget('https://docs.python.org/3/library')
+            con().txtget('https://mit-license.org')
+            con[another_site].txtget('utils.html')
+        print(len(con[0]), len(con[1]), len(con[2]))
+        print([len(c) for c in con])
+
+        return
 
         # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')
@@ -55,6 +72,9 @@ class MyPlugin(SimplePlugin):
 
         # self.search._add('abc')
         # self.search.clear()
+
+    def yyy(self, a: PathArg, b: PathArg = 44, c=None):
+        pass
 
     @cached
     def get_gh(self):
