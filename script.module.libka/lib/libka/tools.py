@@ -26,6 +26,7 @@ Args = Tuple[Any]
 KwArgs = Dict[str, Any]
 
 
+# Author: rysson
 class adict(dict):
     """
     Simple dict with attribute access.
@@ -52,6 +53,7 @@ class adict(dict):
         return dict(self)
 
 
+# Author: rysson
 def mkmdict(seq, *, container=None):
     """Make multi-dict {key: [val, val]...}."""
     if container is None:
@@ -61,6 +63,7 @@ def mkmdict(seq, *, container=None):
     return container
 
 
+# Author: rysson
 def item_iter(obj):
     """
     Return item (key, value) iterator from dict or pair sequence.
@@ -73,6 +76,7 @@ def item_iter(obj):
     return obj
 
 
+# Author: rysson
 def get_attr(obj, name, *, default: Optional[Any] = None, sep='.'):
     """
     Get attribute `name` separated by `sep` (default a dot).
@@ -97,6 +101,7 @@ def get_attr(obj, name, *, default: Optional[Any] = None, sep='.'):
     return obj
 
 
+# Author: rysson
 def wraps_class(src):
     """Simple class wrapper, like `functools.wraps`."""
     def wrapper(cls):
@@ -110,12 +115,14 @@ def wraps_class(src):
     return wrapper
 
 
+# Author: rysson
 def encode_data(data):
     """Raw Python data decode. To get *raw* Python data from URL."""
     octet = b64encode(gzip.compress(pickle.dumps(data), mtime=0), b'-_').replace(b'=', b'')
     return octet.decode('ascii')
 
 
+# Author: rysson
 def decode_data(octet):
     """Raw Python data encode. To put *raw* Python data into URL."""
     if not isinstance(octet, bytes):
@@ -126,6 +133,7 @@ def decode_data(octet):
     return pickle.loads(gzip.decompress(b64decode(octet, b'-_')))
 
 
+# Author: rysson
 def xstriter(*seq):
     """Yield non-empty items as string."""
     for x in seq:
@@ -133,6 +141,7 @@ def xstriter(*seq):
             yield str(x)
 
 
+# Author: rysson
 def setdefaultx(dct, key, *values):
     """
     Set dict.default() for first non-None value.
@@ -144,7 +153,7 @@ def setdefaultx(dct, key, *values):
     return dct
 
 
-#: Call descrtiption
+# Author: rysson
 class CallDescr:
     """
     Simple call description.
@@ -255,6 +264,7 @@ def get_class_that_defined_method(meth: Callable) -> Type:
     return cls
 
 
+# Author: rysson
 def do_call(meth: Callable, args: Optional[Args] = None, kwargs: Optional[KwArgs] = None,
             *, cls: Optional[Type] = None, obj: Optional[Any] = None, ref=None) -> Any:
     """Call `meth` whatever it is. Support for unbounded methods."""
@@ -316,6 +326,7 @@ def copy_function(f: Callable, *,
 # See: https://github.com/MacHu-GWU/inspect_mate-project
 
 
+# Author: rysson
 def add_url_scheme(scheme):
     """Add scheme as netloc realtive, then the scheme works as http in urljoin()."""
     from urllib.parse import uses_relative, uses_netloc

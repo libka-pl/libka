@@ -5,14 +5,16 @@ Author: rysson + stackoverflow
 """
 
 import re
+from sys import maxsize
 from itertools import chain
 from urllib.parse import quote_plus
 from urllib.parse import parse_qsl
 from typing import (
-    Optional, Union,
-    Set,
+    Optional, Union, Generator,
+    Any, Set, List,
 )
 from pathlib import Path
+import json
 from .types import KwArgs
 from .tools import (
     encode_data, decode_data,
@@ -89,7 +91,8 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
     return url % encode_params(params=params, raw=raw)
 
 
-def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: int = 0, many: bool = True):
+def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: int = 0,
+            many: bool = True) -> Union[str, List[str]]:
     """
     Search regex pattern, return sub-expr(s) or whole found text or default.
 
@@ -105,6 +108,13 @@ def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: 
         Regex flags like `re.IGNORECASE`.
     many : bool
         Returns all groups if there is more then one sub-expr.
+
+    Returns
+    -------
+    str
+        Found expresion or first subexpresion.
+    list of str
+        All subexpresion (if there are more then one) if `many` is true.
 
     Pattern can be text (str or unicode) or compiled regex.
 
@@ -127,6 +137,66 @@ def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: 
     return groups
 
 
+def html_json_iter(html: str, var: str, *, strict: bool = True,
+                   start: int = 0, end: int = maxsize) -> Generator[Any, None, None]:
+    """
+    Extracting JSON parts from JavaScript `<script>` tags from HTML pages generator.
+
+    Parameters
+    ----------
+    html : str
+        HTML page text, where JSON will be looked for.
+    var : str
+        JavaScript variable name `var = {...}`.
+    strict : bool
+        Parse JSON strict if true. If false some JS extension will be allowed like ending commas.
+    start : int
+        Starting offset in HTML page `html[start:]`.
+    end : int
+        Last offset in HTML page `html[:end]`.
+
+    Yield
+    -----
+    Parsed JSON.
+    """
+    inside = r'(?:"(?:\\.|[^"])*"|[^;])*'
+    r = re.compile(rf'\b{var}' r'\s*=\s*(\{' f'{inside}' r'\}|\[' f'{inside}' r'\])\s*;', re.DOTALL)
+    for mch in r.finditer(html, pos=start, endpos=end):
+        data = mch.group(1)
+        if not strict:
+            def repl(m):
+                return ''.join((m.group(1) or '', rm_re.sub(r'\1', m.group(2))))
+
+            rm_re = re.compile(r',(\s*[]}])', re.DOTALL)
+            data = re.sub(r'("(?:\\.|[^"])*")?([^"]*)', repl, data, re.DOTALL)
+        yield json.loads(data)
+
+
+def html_json(html: str, var: str, *, strict: bool = True, start: int = 0, end: int = maxsize) -> Any:
+    """
+    Extract single JSON from JavaScript `<script>` tags from HTML pages.
+
+    Parameters
+    ----------
+    html : str
+        HTML page text, where JSON will be looked for.
+    var : str
+        JavaScript variable name `var = {...}`.
+    strict : bool
+        Parse JSON strict if true. If false some JS extension will be allowed like ending commas.
+    start : int
+        Starting offset in HTML page `html[start:]`.
+    end : int
+        Last offset in HTML page `html[:end]`.
+
+    Returns
+    -------
+    Parsed JSON or None.
+    """
+    for data in html_json_iter(html, var, strict=strict, start=start, end=end):
+        return data
+
+
 if __name__ == '__main__':
     s = encode_url('http://a.b/c/d', params={'e': 42}, raw={'x': set((1, 2, 3))})
     # print(f'encoding url: {s!r}')
@@ -142,3 +212,5 @@ if __name__ == '__main__':
     assert u.query == MultiDict(e='42', x={1, 2, 3})
     # print(f'query "x":    {u.query["x"]!r}')
     assert u.query["x"] == {1, 2, 3}
+
+    assert html_json('asd aa= {"qwe": ",};",};  z={ "z": "Z" };', 'aa', strict=False) == {'qwe': ',};'}
