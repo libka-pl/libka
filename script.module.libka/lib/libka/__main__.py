@@ -40,7 +40,8 @@ class MyPlugin(SimplePlugin):
 
         with self.concurrent() as con:
             con[...].txtget('https://docs.python.org/3/library')
-            con().txtget('https://mit-license.org')
+            # con().txtget('https://mit-license.org')
+            next(con).txtget('https://mit-license.org')
             con[another_site].txtget('utils.html')
         print(len(con[0]), len(con[1]), len(con[2]))
         print([len(c) for c in con])

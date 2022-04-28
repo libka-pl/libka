@@ -404,6 +404,8 @@ class SiteMixin:
         >>> print(con[0])     # First JSON result
         >>> print(list(con))  # All JSON results
 
+        Unnamed requests are available by `con[...]`, `con()`, `con._` or `next(con)`.
+
         To override a site instance in concurrent block call an item with the site.
 
         >>> site = Site('https://my.site/api/')
@@ -513,15 +515,36 @@ class SiteConcurrent:
     def __getitem__(self, key):
         if not self._active:
             return self._item_list[key].thread.result
-        if key == len(self._item_list):
-            key = ...
-        if type(key) is int:
+        site = self._site
+        if key is ... or key == '_' or key == len(self._item_list):
+            pass  # new item
+        elif type(key) is int:
             return self._item_list[key]
-        item = SiteConcurrentItem(concurrent=self, site=self._site)
-        if isinstance(key, SiteMixin):
-            item.site = key
+        elif isinstance(key, SiteMixin):
+            site = key
+        else:
+            raise KeyError(key)
+        item = SiteConcurrentItem(concurrent=self, site=site)
         self._item_list.append(item)
         return item
+
+    def __next__(self):
+        """Pseudo iterator to use unnamed request as `next(con).method(...)`."""
+        item = SiteConcurrentItem(concurrent=self, site=self._site)
+        self._item_list.append(item)
+        return item
+
+    @property
+    def _(self):
+        """Attribute `_` to use unnamed request as `con._.method(...)`."""
+        item = SiteConcurrentItem(concurrent=self, site=self._site)
+        self._item_list.append(item)
+        return item
+
+    def __iter__(self):
+        if self._active:
+            return iter(self._item_list)
+        return iter(it.thread.result for it in self._item_list)
 
     def __call__(self, site: Optional[SiteMixin] = None):
         if not self._active:
