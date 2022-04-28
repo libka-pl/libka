@@ -12,6 +12,7 @@ from typing import (
 )
 from .routing import PathArg, call
 from .types import regex
+from .logs import log
 from copy import copy
 from fnmatch import fnmatch
 if TYPE_CHECKING:
@@ -194,6 +195,8 @@ class MenuMixin:
     Menu mixin to use with Addon.
     """
 
+    MENU_INHERIT_KYES = {'order_key', 'view'}
+
     def _menu(self, kdir: 'AddonDirectory', index_path: str = '') -> None:
         """
         Method called on menu support. Call it from `home()`.
@@ -206,12 +209,15 @@ class MenuMixin:
             Comma separated submenu index path.
         """
         index_path = [int(v) for v in index_path.split(',') if v]
-        menu = self.MENU
+        menu = getattr(self, 'MENU', None)
+        if menu is None:
+            log.warning(f'MENU is not defined, skipping {self.__class__.__name__}.menu()')
+            return
         extra_data = dict(menu._data)
         for p in index_path:
             menu = menu.items[p]
             extra_data.update(menu._data)
-        extra_data = {k: v for k, v in extra_data.items() if k in ('order_key',)}
+        extra_data = {k: v for k, v in extra_data.items() if k in self.MENU_INHERIT_KYES}
         index_path.append(-1)
         for i, ent in enumerate(menu.items or ()):
             index_path[-1] = i
