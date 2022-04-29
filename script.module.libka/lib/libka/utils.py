@@ -167,8 +167,8 @@ def html_json_iter(html: str, var: str, *, strict: bool = True,
             def repl(m):
                 return ''.join((m.group(1) or '', rm_re.sub(r'\1', m.group(2))))
 
-            rm_re = re.compile(r',(\s*[]}])', re.DOTALL)
-            data = re.sub(r'("(?:\\.|[^"])*")?([^"]*)', repl, data, re.DOTALL)
+            rm_re = re.compile(r',(\s*[]}])', flags=re.DOTALL)
+            data = re.sub(r'("(?:\\.|[^"])*")?([^"]*)', repl, data, flags=re.DOTALL)
         yield json.loads(data)
 
 
