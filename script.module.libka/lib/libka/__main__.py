@@ -33,15 +33,18 @@ class MyPlugin(SimplePlugin):
         self.site = Site()
         another_site = Site('https://doc.libka.pl/libka/')
         with self.site.concurrent() as con:
-            con.aa.txtget('https://docs.python.org/3/library')
-            con.bb.txtget('https://mit-license.org')
-            con.cc(another_site).txtget('utils.html')
-        print(len(con.aa), len(con.bb), len(con.cc))
+            con.a.aa.txtget('https://docs.python.org/3/library')
+            con['bb'].txtget('https://mit-license.org')
+            con.a.cc(another_site).txtget('utils.html')
+        print(len(con.a.aa), len(con.a['bb']), len(con['cc']))
+        print([len(v) for v in con.values()])
+        print([f'{k}={len(v)}' for k, v in con.items()])
 
         with self.concurrent() as con:
             con[...].txtget('https://docs.python.org/3/library')
             # con().txtget('https://mit-license.org')
-            next(con).txtget('https://mit-license.org')
+            # next(con).txtget('https://mit-license.org')
+            con.txtget('https://mit-license.org')
             con[another_site].txtget('utils.html')
         print(len(con[0]), len(con[1]), len(con[2]))
         print([len(c) for c in con])

@@ -28,6 +28,7 @@ except ImportError:
         JSONDecodeError = ValueError
 from certifi import where
 from http.cookiejar import LWPCookieJar
+from .tools import generator
 from .utils import encode_url, encode_params
 from .url import URL
 from .threads import ThreadPool
@@ -387,32 +388,40 @@ class SiteMixin:
         Concurrent site request API `with` block.
 
         Allow call many concurrent site requests and get theirs results in easy way.
-        The results are available by the same request names after the `with` statement.
+        The results are available by the same request names after the `with` statement
+        by attribute proxy `con.a`.
 
         >>> site = Site('https://my.site/api/')
         >>> with site.concurrent() as con:
-        ...     con.a.jget('endpoint_a')
-        ...     con.b.jpost('endpoint_b', json={})
-        >>> print(con.a, con.b)  # JSON results
+        ...     con.a.aa.jget('endpoint_aa')
+        ...     con.a.bb.jpost('endpoint_bb', json={})
+        >>> print(con.a.aa, con.a.bb)  # JSON results
+        >>> print(con.a['aa'], con['bb'], list(con.values()))  # JSON results
 
         It's also possible to create unnamed requests.
 
         >>> site = Site('https://my.site/api/')
         >>> with site.concurrent() as con:
         ...     for url in ulr_list:
-        ...         con[...].jget(url)
+        ...         con.jget(url)
         >>> print(con[0])     # First JSON result
         >>> print(list(con))  # All JSON results
 
-        Unnamed requests are available by `con[...]`, `con()`, `con._` or `next(con)`.
+        Every access to `con` creates new concurrent connection.
+
+        Unnamed requests are available directly and by experimental
+        `con[...]`, `con()`, `con._` or `next(con)`.
 
         To override a site instance in concurrent block call an item with the site.
 
         >>> site = Site('https://my.site/api/')
         >>> another_site = Site('https://my.another.site')
-        >>> with site.concurrent() as con:
-        ...     con.a.jget('endpoint_a')                # my.site/api/endpoint_a
-        ...     con.c(another_site).jget('endpoint_c')  # my.another.site/endpoint_c
+        >>> with site.concurrent() as con:         # Named:
+        ...     con.a.aa.jget('aa')                #  my.site/api/aa
+        ...     con.a.cc(another_site).jget('cc')  #  my.another.site/cc
+        >>> with site.concurrent() as con:         # Unnamed:
+        ...     con.jget('aa')                     #  my.site/api/aa
+        ...     con(another_site).jget('cc')       #  my.another.site/cc
 
         Any concurrent item (named or not) has a full `SiteMixin` API.
         """
@@ -495,36 +504,62 @@ class SiteConcurrent:
     """
 
     def __init__(self, *, site):
+        def a_getattr(that, key):
+            if key[:1] == '_':
+                raise AttributeError(key)
+            if not self._active:
+                try:
+                    return self._item_dict[key].thread.result
+                except KeyError:
+                    raise AttributeError(key) from None
+            if key in self._item_dict:
+                return self._item_dict[key]
+            self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
+            self._item_list.append(item)
+            return item
+
+        def a_getitem(that, key):
+            if not self._active:
+                return self._item_dict[key].thread.result
+            if key in self._item_dict:
+                return self._item_dict[key]
+            self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
+            self._item_list.append(item)
+            return item
+
         self._site = site
         self._pool = ThreadPool()
         self._active = True
         self._item_dict = {}
         self._item_list = []
+        atype = type('SiteConcurrentAttr', (), {'__getattr__': a_getattr, '__getitem__': a_getitem})
+        self.a = self.an = self.the = atype()
 
     def __getattr__(self, key):
         if key[:1] == '_':
             raise AttributeError(key)
-        if not self._active:
-            return self._item_dict[key].thread.result
-        if key in self._item_dict:
-            return self._item_dict[key]
-        self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
+        item = SiteConcurrentItem(concurrent=self, site=self._site)
         self._item_list.append(item)
-        return item
+        return getattr(item, key)
 
     def __getitem__(self, key):
         if not self._active:
-            return self._item_list[key].thread.result
+            if type(key) is int:
+                return self._item_list[key].thread.result
+            return self._item_dict[key].thread.result
         site = self._site
         if key is ... or key == '_' or key == len(self._item_list):
-            pass  # new item
+            key = None  # new item
         elif type(key) is int:
             return self._item_list[key]
         elif isinstance(key, SiteMixin):
             site = key
-        else:
+            key = None
+        elif key and not isinstance(key, str):
             raise KeyError(key)
         item = SiteConcurrentItem(concurrent=self, site=site)
+        if key:
+            self._item_dict[key] = item
         self._item_list.append(item)
         return item
 
@@ -558,6 +593,19 @@ class SiteConcurrent:
 
     def __len__(self):
         return len(self._item_list)
+
+    def keys(self):
+        return self._item_dict.keys()
+
+    def values(self):
+        if self._active:
+            return self._item_dict.values()
+        return generator((it.thread.result for it in self._item_dict.values()), length=len(self._item_dict))
+
+    def items(self):
+        if self._active:
+            return self._item_dict.values()
+        return generator(((k, it.thread.result) for k, it in self._item_dict.items()), length=len(self._item_dict))
 
     def _close(self):
         self._pool.close()

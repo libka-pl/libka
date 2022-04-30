@@ -337,3 +337,20 @@ def add_url_scheme(scheme):
             uses_relative.append(s)
         if s not in uses_netloc:
             uses_netloc.append(s)
+
+
+# Author: rysson
+class generator:
+    """Simple generator object with length."""
+
+    def __init__(self, generator, *, length=None):
+        self._generator = generator
+        self._length = length
+
+    def __iter__(self):
+        return iter(self._generator)
+
+    def __len__(self):
+        if self._length is None:
+            TypeError(f'object of type {type(self._generator)} has no len()')
+        return self._length
