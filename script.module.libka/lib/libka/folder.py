@@ -88,6 +88,12 @@ class ListItem:
     def info(self):
         return self._info
 
+    def get(self, info):
+        """Get single info value or another value or None if not exists."""
+        if info == 'label':
+            return self.getLabel()
+        return self._info.get(info)
+
     def get_info(self, info):
         """Get single info value or None if not exists."""
         return self._info.get(info)
@@ -293,7 +299,7 @@ class AddonDirectory:
                     reverse = True
                 elif srt.startswith('+'):
                     srt = srt[1:]
-                self.item_list.sort(key=lambda it: (Cmp(it.item.get_info(srt))
+                self.item_list.sort(key=lambda it: (Cmp(it.item.get(srt))
                                                     if isinstance(it.item, ListItem)
                                                     else Cmp()),
                                     reverse=reverse)
@@ -360,7 +366,7 @@ class AddonDirectory:
                 xbmcplugin.SORT_METHOD_DURATION: ('duration',),
                 xbmcplugin.SORT_METHOD_GENRE:    ('genre',),
         }.items():
-            if any(it.item.get_info(key)
+            if any(it.item.get(key)
                    for it in self.item_list if isinstance(it.item, ListItem)
                    for key in keys):
                 yield method

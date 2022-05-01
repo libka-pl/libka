@@ -39,6 +39,7 @@ class MyPlugin(SimplePlugin):
         print(len(con.a.aa), len(con.a['bb']), len(con['cc']))
         print([len(v) for v in con.values()])
         print([f'{k}={len(v)}' for k, v in con.items()])
+        # print(dict(con.a))
 
         with self.concurrent() as con:
             con[...].txtget('https://docs.python.org/3/library')

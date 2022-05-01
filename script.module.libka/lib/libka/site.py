@@ -38,6 +38,9 @@ if TYPE_CHECKING:
     from .path import Path
 
 
+urllib3.disable_warnings()
+
+
 class Undefined:
     """Helper. Value is undefined."""
 
@@ -527,12 +530,19 @@ class SiteConcurrent:
             self._item_list.append(item)
             return item
 
+        def a_iter(that):
+            return iter(self._item_dict)
+
+        def a_len(that):
+            return len(self._item_dict)
+
         self._site = site
         self._pool = ThreadPool()
         self._active = True
         self._item_dict = {}
         self._item_list = []
-        atype = type('SiteConcurrentAttr', (), {'__getattr__': a_getattr, '__getitem__': a_getitem})
+        atype = type('SiteConcurrentAttr', (Mapping,),
+                     {'__getattr__': a_getattr, '__getitem__': a_getitem, '__len__': a_len, '__iter__': a_iter})
         self.a = self.an = self.the = atype()
 
     def __getattr__(self, key):
