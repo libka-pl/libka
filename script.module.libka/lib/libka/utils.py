@@ -59,7 +59,9 @@ def encode_params(params: Optional[KwArgs] = None, *, raw: Optional[KwArgs] = No
             return 'true'
         if s is False:
             return 'false'
-        if not isinstance(s, str):
+        if isinstance(s, (dict, list)):
+            s = json.dumps(s)
+        elif not isinstance(s, str):
             s = str(s)
         return quote_plus(s)
 

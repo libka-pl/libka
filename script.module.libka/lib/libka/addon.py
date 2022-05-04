@@ -198,6 +198,11 @@ class Addon(MenuMixin, BaseAddonMixin):
             endpoint = self.mkurl(endpoint)
         xbmc.executebuiltin(f'Container.Refresh({endpoint or ""})')
 
+    def make_run_plugin(self, endpoint):
+        if callable(endpoint) or isinstance(endpoint, Call):
+            endpoint = self.mkurl(endpoint)
+        return f'XBMC.RunPlugin({endpoint})'
+
     def get_default_art(self, name):
         """Returns path to default art."""
 

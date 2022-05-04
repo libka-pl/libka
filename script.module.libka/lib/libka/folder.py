@@ -750,9 +750,15 @@ class AddonContextMenu(list):
                     self.add(item)
 
     def add(self, title, endpoint=None, *, format=None, style=None):
+        method = title if endpoint is None else endpoint
         entry = self.addon.mkentry(title, endpoint, style=style)
         label = entry.label
         if label is None:
             label = entry.title
         label = self.addon.format_title(label, entry.style, n=len(self) + 1)
-        self.append((label, entry.url))
+        if isinstance(method, str):
+            self.append((label, entry.url))
+        else:
+            self.append((label, f'Container.Update({entry.url})'))
+            # self.append((label, f'Container.Refresh({entry.url})'))
+            # self.append((label, f'XBMC.RunPlugin({entry.url})'))
