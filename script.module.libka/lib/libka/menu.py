@@ -10,7 +10,7 @@ from typing import (
     List, Dict, Set, Iterator,
     TYPE_CHECKING,
 )
-from .routing import PathArg, call
+from .routing import PathArg, call, Call
 from .types import regex
 from .logs import log
 from copy import copy
@@ -146,7 +146,14 @@ class Menu:
                         process_item(addon=addon, kdir=kdir, index_path=index_path, item=it)
                     blk.sort_items()
             elif self.call:
-                kdir.menu(self.title, getattr(addon, self.call, self.call))
+                if isinstance(self.call, str):
+                    kdir.menu(self.title, getattr(addon, self.call, self.call))
+                elif isinstance(self.call, Call) and self.call.method:
+                    method = getattr(addon, self.call.method, self.call.method)
+                    kdir.menu(self.title, Call(method=method, args=self.call.args,
+                                               kwargs=self.call.kwargs, raw=self.call.raw))
+                else:
+                    kdir.menu(self.title, self.call)
             elif self.items:
                 kdir.menu(self.title, call(addon.menu, ','.join(map(str, index_path))))
             else:

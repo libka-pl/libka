@@ -530,6 +530,9 @@ class SiteConcurrent:
             self._item_list.append(item)
             return item
 
+        def a_contains(tha, key):
+            return key in self._item_dict
+
         def a_iter(that):
             return iter(self._item_dict)
 
@@ -542,7 +545,8 @@ class SiteConcurrent:
         self._item_dict = {}
         self._item_list = []
         atype = type('SiteConcurrentAttr', (Mapping,),
-                     {'__getattr__': a_getattr, '__getitem__': a_getitem, '__len__': a_len, '__iter__': a_iter})
+                     {'__getattr__': a_getattr, '__getitem__': a_getitem, '__contains__': a_contains,
+                      '__len__': a_len, '__iter__': a_iter})
         self.a = self.an = self.the = atype()
 
     def __getattr__(self, key):
