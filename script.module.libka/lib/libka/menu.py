@@ -135,6 +135,8 @@ class Menu:
         """
         self._updated_data = data
         try:
+            if self.when and not addon.settings[self.when]:
+                return
             entry_iter = getattr(self, 'entry_iter', None)
             if entry_iter is not None:
                 process_item = self._data.get('process_item', self.process_item)

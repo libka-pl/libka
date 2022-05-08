@@ -4,7 +4,7 @@
 
 import sys
 from .debug import xbmc_debug
-from . import SimplePlugin, Site, call, PathArg, RawArg, search
+from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, search
 # from . import Site
 from .lang import text
 from .logs import log
@@ -16,7 +16,8 @@ xbmc_debug(fake=True, console=True, items=True)
 pathmod.vfs = None
 
 
-class MyPlugin(SimplePlugin):
+# class MyPlugin(SimplePlugin):
+class MyPlugin(Plugin):
 
     def __init__(self):
         super().__init__()

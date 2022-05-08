@@ -60,6 +60,7 @@ class Addon(MenuMixin, BaseAddonMixin):
     search = subobject()
 
     def __init__(self, argv=None, router=None):
+        super().__init__()
         if argv is None:
             argv = sys.argv
         if len(argv) < 3 or (argv[1] != '-1' and not argv[1].isdigit()) or (argv[2] and argv[2][:1] != '?'):
