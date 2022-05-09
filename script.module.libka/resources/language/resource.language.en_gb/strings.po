@@ -49,10 +49,6 @@ msgctxt "#32303"
 msgid "New search"
 msgstr ""
 
-msgctxt "#32304"
-msgid "Search options"
-msgstr ""
-
 msgctxt "#32305"
 msgid "Remove"
 msgstr ""
@@ -64,3 +60,83 @@ msgstr ""
 msgctxt "#32307"
 msgid "Search: enter query"
 msgstr ""
+
+msgctxt "#32308"
+msgid "Monday"
+msgstr ""
+
+msgctxt "#32309"
+msgid "Tuesday"
+msgstr ""
+
+msgctxt "#32310"
+msgid "Wednesday"
+msgstr ""
+
+msgctxt "#32311"
+msgid "Thursday"
+msgstr ""
+
+msgctxt "#32312"
+msgid "Friday"
+msgstr ""
+
+msgctxt "#32313"
+msgid "Saturday"
+msgstr ""
+
+msgctxt "#32314"
+msgid "Sunday"
+msgstr ""
+
+msgctxt "#32315"
+msgid "January"
+msgstr ""
+
+msgctxt "#32316"
+msgid "February"
+msgstr ""
+
+msgctxt "#32317"
+msgid "March"
+msgstr ""
+
+msgctxt "#32318"
+msgid "April"
+msgstr ""
+
+msgctxt "#32319"
+msgid "May"
+msgstr ""
+
+msgctxt "#32320"
+msgid "June"
+msgstr ""
+
+msgctxt "#32321"
+msgid "July"
+msgstr ""
+
+msgctxt "#32322"
+msgid "August"
+msgstr ""
+
+msgctxt "#32323"
+msgid "September"
+msgstr ""
+
+msgctxt "#32324"
+msgid "October"
+msgstr ""
+
+msgctxt "#32325"
+msgid "November"
+msgstr ""
+
+msgctxt "#32326"
+msgid "December"
+msgstr ""
+
+#~ msgctxt "#32304"
+#~ msgid "Search options"
+#~ msgstr ""

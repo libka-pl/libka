@@ -64,3 +64,12 @@ text.no = L(32203, 'No')
 text.close = L(32204, 'Close')
 text.cancel = L(32205, 'Cancel')
 text.applay = L(32206, 'Apply')
+
+text.days = [L(32308, 'Monday'), L(32309, 'Tuesday'), L(32310, 'Wednesday'),
+             L(32311, 'Thursday'), L(32312, 'Friday'), L(32313, 'Saturday'), L(32314, 'Sunday')]
+text.isodays = [L(32314, 'Sunday'), L(32308, 'Monday'), L(32309, 'Tuesday'), L(32310, 'Wednesday'),
+                L(32311, 'Thursday'), L(32312, 'Friday'), L(32313, 'Saturday'), L(32314, 'Sunday')]
+text.months = [L(32315, 'January'), L(32316, 'February'), L(32317, 'March'),
+               L(32318, 'April'), L(32319, 'May'), L(32320, 'June'),
+               L(32321, 'July'), L(32322, 'August'), L(32323, 'September'),
+               L(32324, 'October'), L(32325, 'November'), L(32326, 'December')]
