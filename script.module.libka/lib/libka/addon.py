@@ -2,6 +2,7 @@ import sys
 import re
 from collections.abc import Sequence
 from contextlib import contextmanager
+from datetime import datetime
 from typing import (
     overload,
     Union, Optional, Callable, Any,
@@ -65,6 +66,9 @@ class Addon(MenuMixin, BaseAddonMixin):
             argv = sys.argv
         if len(argv) < 3 or (argv[1] != '-1' and not argv[1].isdigit()) or (argv[2] and argv[2][:1] != '?'):
             raise TypeError('Incorrect addon args: %s' % argv)
+        now = datetime.now()
+        #: Timezone UTC offset
+        self.tz_offset = now - datetime.utcfromtimestamp(now.timestamp())
         #: Addon handle (integer).
         self.handle = int(argv[1])
         #: Names for paramteres to encode raw Python data, don't use it.

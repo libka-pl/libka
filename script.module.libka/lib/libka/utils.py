@@ -46,6 +46,34 @@ def parse_url(url: str, *, raw: Optional[Set[str]] = None) -> URL:
     return url
 
 
+def prepare_query_params(params: Optional[KwArgs] = None, *, raw: Optional[KwArgs] = None) -> str:
+    """
+    Helper. Make dict ready to query. Can be used with URL.
+
+    Path is appended (if exists).
+    All data from `params` are prepared (ex. using JSON).
+    All data from `raw` are picked (+gzip +b64).
+    """
+    def prepare(s):
+        if s is True:
+            # Non-standard behavior !
+            return 'true'
+        if s is False:
+            # Non-standard behavior !
+            return 'false'
+        if isinstance(s, (dict, list)):
+            # Non-standard behavior !
+            s = json.dumps(s)
+        elif not isinstance(s, str):
+            s = str(s)
+        return s
+
+    result = {}
+    result.update((k, prepare(v)) for k, v in item_iter(params))
+    result.update((k, encode_data(v)) for k, v in item_iter(raw))
+    return result
+
+
 def encode_params(params: Optional[KwArgs] = None, *, raw: Optional[KwArgs] = None) -> str:
     """
     Helper. Make query aparams with given data.
@@ -56,10 +84,13 @@ def encode_params(params: Optional[KwArgs] = None, *, raw: Optional[KwArgs] = No
     """
     def quote_str_plus(s):
         if s is True:
+            # Non-standard behavior !
             return 'true'
         if s is False:
+            # Non-standard behavior !
             return 'false'
         if isinstance(s, (dict, list)):
+            # Non-standard behavior !
             s = json.dumps(s)
         elif not isinstance(s, str):
             s = str(s)
@@ -90,7 +121,7 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
             path = str(path)
         url = url.join(URL(path))
 
-    return url % encode_params(params=params, raw=raw)
+    return url % prepare_query_params(params=params, raw=raw)
 
 
 def find_re(pattern: Union[regex, str], text: str, *, default: str = '', flags: int = 0,
