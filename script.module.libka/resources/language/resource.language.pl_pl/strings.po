@@ -137,6 +137,18 @@ msgctxt "#32326"
 msgid "December"
 msgstr "Grudzień"
 
+msgctxt "#32327"
+msgid "Today"
+msgstr "Dzisiaj"
+
+msgctxt "#32328"
+msgid "Tomorrow"
+msgstr "Jutro"
+
+msgctxt "#32329"
+msgid "Yesterday"
+msgstr "Wczoraj"
+
 #~ msgctxt "#32304"
 #~ msgid "Search options"
 #~ msgstr "Opcje wyszukiwania"

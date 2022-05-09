@@ -9,6 +9,9 @@ from .path import Path
 from .registry import registry, register_singleton
 
 
+LIBKA_ID = 'script.module.libka'
+
+
 class BaseAddonMixin:
     """
     Some base addon methods.

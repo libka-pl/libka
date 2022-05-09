@@ -8,7 +8,7 @@ from typing import (
     Union, Optional, Callable, Any,
     List,
 )
-from .base import BaseAddonMixin
+from .base import BaseAddonMixin, LIBKA_ID
 from .utils import parse_url
 from .settings import Settings
 from .search import Search
@@ -36,7 +36,104 @@ class Request:
         self.params = self.url.query
 
 
-class Addon(MenuMixin, BaseAddonMixin):
+class AddonMixin(BaseAddonMixin):
+    """
+    Abstract Libka Addon.
+
+    Arguments
+    ---------
+    argv: list[str]
+        Command line arguemnts. If None, sys.argv is used.
+    router: Router
+        Router for URL and method matching. If None, new one is created.
+
+    Created router (if router is None) handle global @entry decorators.
+    """
+
+    _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
+
+    settings = subobject()
+
+    def __init__(self, *args, **kwargs):
+        addon_id = kwargs.pop('id', None)
+        super().__init__(*args, **kwargs)
+        now = datetime.now()
+        #: Timezone UTC offset
+        self.tz_offset = now - datetime.utcfromtimestamp(now.timestamp())
+        #: Names for paramteres to encode raw Python data, don't use it.
+        self.encoded_keys = {'_'}
+        #: Addon ID (unique name)
+        self.id = addon_id
+        #: XMBC (Kodi) Addon
+        self.xbmc_addon = XbmcAddon() if self.id is None else XbmcAddon(self.id)
+        #: Addon settings.
+        self.settings = Settings(addon=self, default=None)
+        #: Default userdata
+        self.user_data = Storage(addon=self)
+        #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
+        self.colors = {
+            'gray': 'gray',
+            'grey': 'gray',
+        }
+        #: Resources
+        self.resources = Resources(self)
+        #: Defualt dafe text formatter
+        self.formatter = SafeFormatter(extended=True)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.id!r})'
+
+    @property
+    def media(self):
+        """Media resources."""
+        return self.resources.media
+
+    def get_color(self, name):
+        return self.colors.get(name, 'gray')
+
+    def format_title(self, text, style, n=0):
+        def get_color(m):
+            return '[COLOR %s]' % self.get_color(m.group(1))
+
+        if style is not None:
+            if not isinstance(style, str) and isinstance(style, Sequence):
+                style = '%s{}%s' % (''.join(f'[{a}]' for a in style),
+                                    ''.join(f'[/{a.split(None, 1)[0]}]' for a in reversed(style)))
+            text = self.formatter.format(style, text, title=text, text=text, n=n, colors=self.colors)
+        try:
+            text = self._RE_TITLE_COLOR.sub(get_color, text)
+        except TypeError:
+            log.error(f'Incorrect label/title type {type(text)}')
+            raise
+        return text
+
+    def open_settings(self):
+        """Deprecated. Use Addon.settings()."""
+        self.xbmc_addon.openSettings()
+
+    def builtin(self, command):
+        """Execute Kodi build-in command."""
+        xbmc.executebuiltin(command)
+
+    def refresh(self, endpoint=None):
+        """Execute Kodi build-in command."""
+        if callable(endpoint) or isinstance(endpoint, Call):
+            endpoint = self.mkurl(endpoint)
+        xbmc.executebuiltin(f'Container.Refresh({endpoint or ""})')
+
+    def make_run_plugin(self, endpoint):
+        if callable(endpoint) or isinstance(endpoint, Call):
+            endpoint = self.mkurl(endpoint)
+        return f'XBMC.RunPlugin({endpoint})'
+
+    def get_default_art(self, name):
+        """Returns path to default art."""
+
+    def no_operation(self):
+        """Do nothing. For fake menu."""
+
+
+class Addon(MenuMixin, AddonMixin):
     """
     Abstract Libka Addon.
 
@@ -57,7 +154,6 @@ class Addon(MenuMixin, BaseAddonMixin):
 
     _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
 
-    settings = subobject()
     search = subobject()
 
     def __init__(self, argv=None, router=None):
@@ -66,19 +162,12 @@ class Addon(MenuMixin, BaseAddonMixin):
             argv = sys.argv
         if len(argv) < 3 or (argv[1] != '-1' and not argv[1].isdigit()) or (argv[2] and argv[2][:1] != '?'):
             raise TypeError('Incorrect addon args: %s' % argv)
-        now = datetime.now()
-        #: Timezone UTC offset
-        self.tz_offset = now - datetime.utcfromtimestamp(now.timestamp())
         #: Addon handle (integer).
         self.handle = int(argv[1])
-        #: Names for paramteres to encode raw Python data, don't use it.
-        self.encoded_keys = {'_'}
         #: Kodi request to plugin://...
         self.req = Request(argv[0] + argv[2], raw_keys=self.encoded_keys)
         #: Addon ID (unique name)
         self.id = self.req.url.host
-        #: XMBC (Kodi) Addon
-        self.xbmc_addon = XbmcAddon()
         # Set default addon for Call formating.
         Call.addon = self
         #: Router
@@ -88,29 +177,20 @@ class Addon(MenuMixin, BaseAddonMixin):
             self.router = Router(plugin_link, obj=self, addon=self, standalone=False)
         #: Kodi commands
         self.cmd = Commands(addon=self, mkurl=self.router.mkurl)
-        #: Addon settings.
-        self.settings = Settings(addon=self, default=None)
         #: Addon default search.
         self.search = Search(self)
-        #: Default userdata
-        self.user_data = Storage(addon=self)
-        #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
-        self.colors = {
-            'gray': 'gray',
-            'grey': 'gray',
-        }
-        #: Resources
-        self.resources = Resources(self)
-        #: Defualt dafe text formatter
-        self.formatter = SafeFormatter(extended=True)
+        #: Libka itself
+        self._libka = None
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.id!r}, {str(self.req.url)!r})'
 
     @property
-    def media(self):
-        """Media resources."""
-        return self.resources.media
+    def libka(self):
+        """Libka addon itself."""
+        if self._libka is None:
+            self._libka = LibkaTheAddon()
+        return self._libka
 
     @overload
     def mkentry(self, endpoint: Union[Callable, str], *, style: Union[str, List[str]] = None) -> DirEntry:
@@ -170,49 +250,17 @@ class Addon(MenuMixin, BaseAddonMixin):
         finally:
             pass
 
-    def get_color(self, name):
-        return self.colors.get(name, 'gray')
-
-    def format_title(self, text, style, n=0):
-        def get_color(m):
-            return '[COLOR %s]' % self.get_color(m.group(1))
-
-        if style is not None:
-            if not isinstance(style, str) and isinstance(style, Sequence):
-                style = '%s{}%s' % (''.join(f'[{a}]' for a in style),
-                                    ''.join(f'[/{a.split(None, 1)[0]}]' for a in reversed(style)))
-            text = self.formatter.format(style, text, title=text, text=text, n=n, colors=self.colors)
-        try:
-            text = self._RE_TITLE_COLOR.sub(get_color, text)
-        except TypeError:
-            log.error(f'Incorrect label/title type {type(text)}')
-            raise
-        return text
-
-    def open_settings(self):
-        """Deprecated. Use Addon.settings()."""
-        self.xbmc_addon.openSettings()
-
-    def builtin(self, command):
-        """Execute Kodi build-in command."""
-        xbmc.executebuiltin(command)
-
-    def refresh(self, endpoint=None):
-        """Execute Kodi build-in command."""
-        if callable(endpoint) or isinstance(endpoint, Call):
-            endpoint = self.mkurl(endpoint)
-        xbmc.executebuiltin(f'Container.Refresh({endpoint or ""})')
-
-    def make_run_plugin(self, endpoint):
-        if callable(endpoint) or isinstance(endpoint, Call):
-            endpoint = self.mkurl(endpoint)
-        return f'XBMC.RunPlugin({endpoint})'
-
-    def get_default_art(self, name):
-        """Returns path to default art."""
-
 
 class Plugin(Addon):
     """
     Abstract Libka Addon. Plugin is kind of Addon.
     """
+
+
+class LibkaTheAddon(AddonMixin):
+    """
+    Libka addon itself.
+    """
+
+    def __init__(self):
+        super().__init__(id=LIBKA_ID)

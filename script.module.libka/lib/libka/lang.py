@@ -1,5 +1,7 @@
 
-from typing import overload, Dict
+from typing import overload, Optional, Dict
+from datetime import datetime, timedelta
+from .base import LIBKA_ID
 from xbmcaddon import Addon
 
 
@@ -53,7 +55,7 @@ def get_label_getter(id=None):
 
 
 #: Language label getter (translation) for "libka" itself.
-L = get_label_getter('script.module.libka')
+L = get_label_getter(LIBKA_ID)
 
 
 #: some basic phrases to translate
@@ -65,6 +67,9 @@ text.close = L(32204, 'Close')
 text.cancel = L(32205, 'Cancel')
 text.applay = L(32206, 'Apply')
 
+text.today = L(32327, "Today")
+text.tomorrow = L(32328, "Tomorrow")
+text.yesterday = L(32329, "Yesterday")
 text.days = [L(32308, 'Monday'), L(32309, 'Tuesday'), L(32310, 'Wednesday'),
              L(32311, 'Thursday'), L(32312, 'Friday'), L(32313, 'Saturday'), L(32314, 'Sunday')]
 text.isodays = [L(32314, 'Sunday'), L(32308, 'Monday'), L(32309, 'Tuesday'), L(32310, 'Wednesday'),
@@ -73,3 +78,16 @@ text.months = [L(32315, 'January'), L(32316, 'February'), L(32317, 'March'),
                L(32318, 'April'), L(32319, 'May'), L(32320, 'June'),
                L(32321, 'July'), L(32322, 'August'), L(32323, 'September'),
                L(32324, 'October'), L(32325, 'November'), L(32326, 'December')]
+
+
+def day_label(dt: datetime, *, now: Optional[datetime] = None) -> str:
+    """Returns nice date label (today, Monday, 11.12.2013)."""
+    if now is None:
+        now = datetime.now
+    if now.date() == dt.date():
+        return L(32327, 'Today')
+    if (now + timedelta(days=1)).date() == dt.date():
+        return L(32328, 'Tomorrow')
+    if (now - timedelta(days=1)).date() == dt.date():
+        return L(32329, 'Yesterday')
+    return f'{text.days[dt.weekday()]}, {dt:%d.%m.%Y}'

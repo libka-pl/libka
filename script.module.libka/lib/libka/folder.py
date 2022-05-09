@@ -500,8 +500,7 @@ class AddonDirectory:
         # properties
         if properties is not None:
             item.setProperties(properties)
-        if playable:
-            item.setProperty('isPlayable', 'true')
+        item.setProperty('isPlayable', 'true' if playable else 'false')
         if position is not None:
             item.setProperty('SpecialSort', position)
         # menu
@@ -637,6 +636,29 @@ class AddonDirectory:
         For more arguments see AddonDirectory.new().
         """
         return self.item(title, endpoint, playable=True, **kwargs)
+
+    def separator(self, title='———————', *, folder=None, **kwargs):
+        """
+        Add separator item to current directory list.
+
+        Parameters
+        ----------
+        title : str
+            Separator title, if None default is taken.
+        folder: None or call
+            Folder endpoint if not None.
+
+        For more arguments see AddonDirectory.new().
+        """
+        if folder is None or folder is False:
+            endpoint, folder = self.addon.no_operation, False
+        elif folder is True:
+            raise ValueError('Separator folder have to be folder-endpoint or None')
+        else:
+            endpoint, folder = folder, True
+        kwargs.setdefault('style', ['COLOR khaki', 'B', 'I'])
+        kwargs.setdefault('thumb', self.addon.libka.media.image('transparent.png'))
+        return self.item(title, endpoint, playable=False, folder=folder, **kwargs)
 
     def parse(self, *args, **kwargs):
         """

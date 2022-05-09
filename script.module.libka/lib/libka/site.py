@@ -336,6 +336,10 @@ class SiteMixin:
         """DELETE request. For arguments see `Site.request()`."""
         return self.request('DELETE', url, **kwargs)
 
+    def head(self, url, **kwargs):
+        """HEAD request. For arguments see `Site.request()`."""
+        return self.request('HEAD', url, **kwargs)
+
     def jget(self, url, *, on_fail: Any = Undefined, **kwargs):
         """GET request, returns JSON. For arguments see `Site.request()`."""
         try:
