@@ -43,7 +43,8 @@ class ListItem:
     Tiny xbmcgui.ListItem wrapper to keep URL and is_folder flag.
     """
 
-    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, sort_key=None, custom=None):
+    def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, sort_key=None, custom=None,
+                 addon=None):
         if isinstance(name, xbmcgui.ListItem):
             self._libka_item = name
         else:
@@ -55,6 +56,8 @@ class ListItem:
         self._props = {}
         self.sort_key = sort_key
         self.custom = custom
+        self._menu = None
+        self._addon = addon
         if self.type is not None:
             self._libka_item.setInfo(self.type, self._info)
 
@@ -63,6 +66,11 @@ class ListItem:
 
     def __getattr__(self, key):
         return getattr(self._libka_item, key)
+
+    def __call__(self):
+        """Execute item, apply all virtual settings into Kodi ListItem."""
+        if self._menu is not None:
+            self._libka_item.addContextMenuItems(self._menu)
 
     @property
     def mode(self):
@@ -146,6 +154,19 @@ class ListItem:
     def get_property(self, key):
         """Get set property."""
         return self._props.get(key)
+
+    @property
+    def menu(self):
+        """Get context menu, create if missing."""
+        if self._menu is None:
+            self._menu = AddonContextMenu(addon=self._addon)
+        return self._menu
+
+    @menu.setter
+    def menu(self, menu):
+        if not isinstance(menu, AddonContextMenu):
+            menu = AddonContextMenu(menu, addon=self._addon)
+        self._menu = menu
 
 
 #: Helper. Sort item.
@@ -235,7 +256,7 @@ class AddonDirectory:
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
     def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None,
-                 format=None, style=None, isort=None, cache=False, update=False, offscreen=True):
+                 format=None, style=None, isort=None, cache=False, update=False, offscreen=True, menu=None):
         if addon is None:
             addon = globals()['addon']
         self.addon = addon
@@ -265,6 +286,10 @@ class AddonDirectory:
         self.update = update
         self.offscreen = offscreen
         self._next_sort_key = None
+        if menu is not None and not isinstance(menu, AddonContextMenu):
+            menu = AddonContextMenu(menu, addon=self.addon)
+        self._menu = menu
+        self._next_item_menu = None
         handler = getattr(self.addon, 'on_directory_enter', None)
         if handler is not None:
             handler(self)
@@ -505,9 +530,8 @@ class AddonDirectory:
             item.setProperty('SpecialSort', position)
         # menu
         if menu is not None:
-            if not isinstance(menu, AddonContextMenu):
-                menu = AddonContextMenu(menu, addon=self.addon)
-            item.addContextMenuItems(menu)
+            item.menu = AddonContextMenu(self._menu, self._next_item_menu, menu, addon=self.addon)
+        self._next_item_menu = None
         # info
         info = {} if info is None else dict(info)
         if entry.title is not None:
@@ -563,6 +587,7 @@ class AddonDirectory:
         ifolder = False
         if isinstance(item, ListItem):
             # our list item, recover url and folder flag
+            item()
             item, url, ifolder = item._libka_item, item._libka_url, item._libka_folder
             if endpoint is not None:
                 url, *_ = self.router.mkentry(item.getLabel(), endpoint)
@@ -674,18 +699,19 @@ class AddonDirectory:
         """
         return len(self.item_list)
 
-    # @contextmanager
-    # def context_menu(self, safe=False, **kwargs):
-    #     km = AddonContextMenu(self.addon, **kwargs)
-    #     try:
-    #         yield km
-    #     except Exception:
-    #         if not safe:
-    #             raise
-    #     else:
-    #         pass
-    #     finally:
-    #         pass
+    @contextmanager
+    def context_menu(self, safe=False, **kwargs):
+        if self._next_item_menu is None:
+            self._next_item_menu = AddonContextMenu(addon=self.addon, **kwargs)
+        try:
+            yield self._next_item_menu
+        except Exception:
+            if not safe:
+                raise
+        else:
+            pass
+        finally:
+            pass
 
     @contextmanager
     def items_block(self):
@@ -760,16 +786,11 @@ class AddonContextMenu(list):
     See: xbmcgui.ListItem.
     """
 
-    def __init__(self, menu=None, *, addon):
+    def __init__(self, *menus, addon):
         self.addon = addon
-        if menu is not None:
-            for item in menu:
-                if not isinstance(item, str) and isinstance(item, Sequence):
-                    # tuple: (title, handle) or (handle,)
-                    self.add(*item[:2])
-                else:
-                    # just directly: handle
-                    self.add(item)
+        for menu in menus:
+            if menu is not None:
+                self.add_items(menu)
 
     def add(self, title, endpoint=None, *, format=None, style=None):
         method = title if endpoint is None else endpoint
@@ -784,3 +805,14 @@ class AddonContextMenu(list):
             self.append((label, f'Container.Update({entry.url})'))
             # self.append((label, f'Container.Refresh({entry.url})'))
             # self.append((label, f'XBMC.RunPlugin({entry.url})'))
+
+    def add_items(self, menu):
+        for item in menu or ():
+            if not isinstance(item, str) and isinstance(item, Sequence):
+                # tuple: (title, handle) or (handle,)
+                self.add(*item[:2])
+            else:
+                # just directly: handle
+                self.add(item)
+
+    append_items = add_items
