@@ -217,8 +217,11 @@ class Addon(MenuMixin, AddonMixin):
         """
         Dispatcher. Call pointed method with request arguments.
         """
-        if root is None and callable(getattr(self, 'home', None)):
-            root = self.home
+        if root is None:
+            if callable(getattr(self, 'home', None)):
+                root = self.home
+            elif hasattr(self, 'MENU') and callable(getattr(self, 'menu', None)):
+                root = self.menu
         if missing is None and callable(getattr(self, 'missing', None)):
             missing = self.missing
         # TODO: use async too
