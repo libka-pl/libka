@@ -16,8 +16,7 @@ xbmc_debug(fake=True, console=True, items=True)
 pathmod.vfs = None
 
 
-# class MyPlugin(SimplePlugin):
-class MyPlugin(Plugin):
+class MyPlugin(SimplePlugin):
 
     def __init__(self):
         super().__init__()
@@ -33,6 +32,7 @@ class MyPlugin(Plugin):
 
         self.site = Site()
         another_site = Site('https://doc.libka.pl/libka/')
+        print('---')
         with self.site.concurrent() as con:
             con.a.aa.txtget('https://docs.python.org/3/library')
             con['bb'].txtget('https://mit-license.org')
@@ -42,6 +42,7 @@ class MyPlugin(Plugin):
         print([f'{k}={len(v)}' for k, v in con.items()])
         # print(dict(con.a))
 
+        print('---')
         with self.concurrent() as con:
             con[...].txtget('https://docs.python.org/3/library')
             # con().txtget('https://mit-license.org')
@@ -50,6 +51,16 @@ class MyPlugin(Plugin):
             con[another_site].txtget('utils.html')
         print(len(con[0]), len(con[1]), len(con[2]))
         print([len(c) for c in con])
+
+        print('---')
+        with self.concurrent() as con:
+            con[...].txtget('https://docs.python.org/3/library')
+            con.txtget('https://mit-license.org')
+            con['bb'].txtget('https://mit-license.org')
+            con.a.cc(another_site).txtget('utils.html')
+        print([len(c) for c in con], '0:', len(con[0]))
+        print([len(v) for v in con.values()])
+        print([f'{k}={len(v)}' for k, v in con.items()])
 
         return
 

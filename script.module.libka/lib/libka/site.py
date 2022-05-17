@@ -1,10 +1,10 @@
 """
 Access to sites. Wrapper for requests module.
 
+For more inforamtion about rewuests see: https://docs.python-requests.org/en/latest/user/quickstart/
+
 .. include:: ../../../doc/en/site.md
 
-
-See: https://docs.python-requests.org/en/latest/user/quickstart/
 """
 
 from typing import (
@@ -522,7 +522,6 @@ class SiteConcurrent:
             if key in self._item_dict:
                 return self._item_dict[key]
             self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
-            self._item_list.append(item)
             return item
 
         def a_getitem(that, key):
@@ -578,7 +577,8 @@ class SiteConcurrent:
         item = SiteConcurrentItem(concurrent=self, site=site)
         if key:
             self._item_dict[key] = item
-        self._item_list.append(item)
+        else:
+            self._item_list.append(item)
         return item
 
     def __next__(self):

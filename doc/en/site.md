@@ -23,7 +23,7 @@ All methods from `Site` are available simply by `self`.
 ```python
 from libka import Plugin, Site
 
-class MyPlugin(Site, Plugin):
+class MyPlugin(SiteMixin, Plugin):
     ...
 ```
 
@@ -109,7 +109,7 @@ but easier use is more specifics:
 | PUT    | `Site.put`          | `Site.jput`    | —              |
 | PATCH  | `Site.patch`        | `Site.jpatch`  | —              |
 | DELETE | `Site.delete`       | `Site.jdelete` | —              |
-| HEAD   | —                   | —              | —              |
+| HEAD   | `Site.head`         | —              | —              |
 
 HEAD method must be called by `Site.request('HEAD', ...)`.
 
@@ -161,4 +161,10 @@ class MyPlugin(SimplePlugin):
                 kdir.menu(cat['title'], call(self.category, cid=cat['id']))
 ```
 
-...
+
+Concurrent
+----------
+
+There is a easy way to get concurrent requests, by `Site.concurrent()` method.
+
+
