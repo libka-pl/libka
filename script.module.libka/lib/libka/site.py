@@ -28,11 +28,9 @@ except ImportError:
         JSONDecodeError = ValueError
 from certifi import where
 from http.cookiejar import LWPCookieJar
-from .tools import generator
 from .utils import encode_url, encode_params
 from .url import URL
-from .threads import ThreadPool
-from inspect import ismethod
+from .threads import Concurrent
 from .logs import log
 if TYPE_CHECKING:
     from .path import Path
@@ -389,7 +387,6 @@ class SiteMixin:
         except Exception:
             return _resp_failed(on_fail)
 
-    @contextmanager
     def concurrent(self):
         """
         Concurrent site request API `with` block.
@@ -432,11 +429,7 @@ class SiteMixin:
 
         Any concurrent item (named or not) has a full `SiteMixin` API.
         """
-        con = SiteConcurrent(site=self)
-        try:
-            yield con
-        finally:
-            con._close()
+        return Concurrent(instance=self, instance_type=SiteMixin)
 
 
 class Site(SiteMixin):
@@ -476,161 +469,3 @@ class Site(SiteMixin):
         if verify_ssl is not None:
             kwargs['verify_ssl'] = verify_ssl
         super().__init__(base=base, cookiefile=cookiefile, **kwargs)
-
-
-class SiteConcurrentItem:
-    """Helper. Single thread item in `SiteConcurrent`."""
-
-    def __init__(self, *, concurrent, site):
-        self.concurrent = concurrent
-        self.site = site
-        self.thread = None
-
-    def __call__(self, site):
-        self.site = site
-        return self
-
-    def __getattr__(self, key):
-        def concurent_call(*args, **kwargs):
-            self.thread = self.concurrent._pool.start(attr, *args, **kwargs)
-
-        if key[:1] == '_':
-            raise AttributeError(key)
-        attr = getattr(self.site, key)
-        if ismethod(attr):
-            return concurent_call
-        else:
-            return attr
-
-
-class SiteConcurrent:
-    """
-    Concurrent site request API.
-
-    See `SiteMixin.concurrent`.
-    """
-
-    def __init__(self, *, site):
-        def a_getattr(that, key):
-            if key[:1] == '_':
-                raise AttributeError(key)
-            if not self._active:
-                try:
-                    return self._item_dict[key].thread.result
-                except KeyError:
-                    raise AttributeError(key) from None
-            if key in self._item_dict:
-                return self._item_dict[key]
-            self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
-            return item
-
-        def a_getitem(that, key):
-            if not self._active:
-                return self._item_dict[key].thread.result
-            if key in self._item_dict:
-                return self._item_dict[key]
-            self._item_dict[key] = item = SiteConcurrentItem(concurrent=self, site=self._site)
-            self._item_list.append(item)
-            return item
-
-        def a_contains(tha, key):
-            return key in self._item_dict
-
-        def a_iter(that):
-            return iter(self._item_dict)
-
-        def a_len(that):
-            return len(self._item_dict)
-
-        self._site = site
-        self._pool = ThreadPool()
-        self._active = True
-        self._item_dict = {}
-        self._item_list = []
-        atype = type('SiteConcurrentAttr', (Mapping,),
-                     {'__getattr__': a_getattr, '__getitem__': a_getitem, '__contains__': a_contains,
-                      '__len__': a_len, '__iter__': a_iter})
-        self.a = self.an = self.the = atype()
-
-    def __getattr__(self, key):
-        if key[:1] == '_':
-            raise AttributeError(key)
-        item = SiteConcurrentItem(concurrent=self, site=self._site)
-        self._item_list.append(item)
-        return getattr(item, key)
-
-    def __getitem__(self, key):
-        if not self._active:
-            if type(key) is int:
-                return self._item_list[key].thread.result
-            return self._item_dict[key].thread.result
-        site = self._site
-        if key is ... or key == '_' or key == len(self._item_list):
-            key = None  # new item
-        elif type(key) is int:
-            return self._item_list[key]
-        elif isinstance(key, SiteMixin):
-            site = key
-            key = None
-        elif key and not isinstance(key, str):
-            raise KeyError(key)
-        item = SiteConcurrentItem(concurrent=self, site=site)
-        if key:
-            self._item_dict[key] = item
-        else:
-            self._item_list.append(item)
-        return item
-
-    def __next__(self):
-        """Pseudo iterator to use unnamed request as `next(con).method(...)`."""
-        item = SiteConcurrentItem(concurrent=self, site=self._site)
-        self._item_list.append(item)
-        return item
-
-    @property
-    def _(self):
-        """Attribute `_` to use unnamed request as `con._.method(...)`."""
-        item = SiteConcurrentItem(concurrent=self, site=self._site)
-        self._item_list.append(item)
-        return item
-
-    def __iter__(self):
-        if self._active:
-            return iter(self._item_list)
-        return iter(it.thread.result for it in self._item_list)
-
-    def __call__(self, site: Optional[SiteMixin] = None):
-        if not self._active:
-            log.error('Call non active SiteConcurrent()')
-            return
-        if site is None:
-            site = self._site
-        item = SiteConcurrentItem(concurrent=self, site=site)
-        self._item_list.append(item)
-        return item
-
-    def __len__(self):
-        return len(self._item_list)
-
-    def keys(self):
-        return self._item_dict.keys()
-
-    def values(self):
-        if self._active:
-            return self._item_dict.values()
-        return generator((it.thread.result for it in self._item_dict.values()), length=len(self._item_dict))
-
-    def items(self):
-        if self._active:
-            return self._item_dict.values()
-        return generator(((k, it.thread.result) for k, it in self._item_dict.items()), length=len(self._item_dict))
-
-    def _close(self):
-        self._pool.close()
-        self._active = False
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._close()

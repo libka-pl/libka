@@ -16,6 +16,27 @@ xbmc_debug(fake=True, console=True, items=True)
 pathmod.vfs = None
 
 
+def test_concurrent():
+    import time
+    from .threads import concurrent
+
+    def foo(x):
+        time.sleep(1)
+        return x**2
+
+    with concurrent(name='abc') as con:
+        results = [con.foo(x) for x in range(10)]
+        abc = con.a.abc.foo(10)
+        xyz = con.a.xyz.foo(11)
+        x12 = con.foo(12)
+    print(con.results(), con[x12])
+    print(con.list_results())
+    print(con.dict_results())
+    print(results, abc, xyz)
+
+    sys.exit(0)
+
+
 class MyPlugin(SimplePlugin):
 
     def __init__(self):
