@@ -25,16 +25,36 @@ def test_concurrent():
         return x**2
 
     with concurrent(name='abc') as con:
-        results = [con.foo(x) for x in range(10)]
+        indexes = [con.foo(x) for x in range(10)]
         abc = con.a.abc.foo(10)
         xyz = con.a.xyz.foo(11)
         x12 = con.foo(12)
+    print(indexes, abc, xyz, x12)
+    print(list(con), con[abc], con[xyz], con[x12])
     print(con.results(), con[x12])
     print(con.list_results())
-    print(con.dict_results())
-    print(results, abc, xyz)
+    print(con.dict_results(), con['xyz'], con.a.xyz)
+    print(indexes, abc, xyz)
+    sys.exit(0)
+
+
+def test_concurrent_zip():
+    import time
+    from .threads import thread_it_zipped
+
+    def foo(a, b, *, c):
+        time.sleep(1)
+        return a + b + c
+
+    a = [11, 21, 31, 41]
+    b = [12, 22, 32, 42]
+    c = [13, 23, 33, 43]
+    print(thread_it_zipped(foo, 0, a, b, c=c))
 
     sys.exit(0)
+
+
+# test_concurrent()
 
 
 class MyPlugin(SimplePlugin):

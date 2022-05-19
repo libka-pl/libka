@@ -29,7 +29,7 @@ def remod(mods, link, func_link=None):
             link = entry + link
         if link.startswith('https') or link.startswith('http'):
             link = fr'<a href="{link}"><code>\1.\2</code></a>'
-        yield Link(re.compile(fr'<code>({"|".join(mods)})\.(\w+)</code>'), link)
+        yield Link(re.compile(fr'<code>({"|".join(mods)})\.(\w+|[A-Z]\w*\.\w+)</code>'), link)
 
 
 BUILTIN = ['abc', 'aifc', 'argparse', 'ast', 'asynchat', 'asyncio', 'asyncore', 'audioop', 'base64', 'bdb',

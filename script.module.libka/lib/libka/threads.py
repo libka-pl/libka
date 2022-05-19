@@ -1,5 +1,7 @@
 """
 Some threading wrapper to run requests concurrency.
+
+See `ThreadPool` and `concurrent()`.
 """
 
 import os
@@ -7,13 +9,24 @@ from threading import Thread
 from inspect import ismethod, currentframe
 from collections.abc import Mapping
 from itertools import chain
+import time
 from .tools import adict, generator
 from .logs import log
 from typing import (
     # TYPE_CHECKING,
-    Optional, Union, Type, Any, Generator,
+    Optional, Union, Type, Any, Generator, Callable,
     Tuple, List, Dict,
 )
+
+
+__pdoc__ = {}
+__pdoc__['Concurrent._'] = True
+__pdoc__['Concurrent._keys'] = True
+__pdoc__['Concurrent._values'] = True
+__pdoc__['Concurrent._items'] = True
+__pdoc__['Concurrent._results'] = True
+__pdoc__['Concurrent._list_results'] = True
+__pdoc__['Concurrent._dict_results'] = True
 
 
 Params = Dict[str, Any]
@@ -26,11 +39,25 @@ class MISSING:
 
 class ThreadCall(Thread):
     """
-    Async call. Create thread for func(*args, **kwargs), should be started.
-    Result will be in thread.result after therad.join() call.
+    Thread async call. Create thread for `func(*args, **kwargs)`, should be started.
     """
 
     def __init__(self, func, *args, **kwargs):
+        """
+        Parameters
+        ----------
+        func : callable
+            Function or method to call.
+        args
+            Postional arguments passed to `func()`.
+        kwargs
+            Named arguments passed to `func()`.
+
+        The thread is not started.
+
+        Result is returned by `ThreadCall.join()`
+        and is be available in `ThreadCall.result` after `ThreadCall.join()` call.
+        """
         super(ThreadCall, self).__init__()
         self.func = func
         self.args = args
@@ -40,16 +67,39 @@ class ThreadCall(Thread):
     def run(self):
         self.result = self.func(*self.args, **self.kwargs)
 
+    def join(self, timeout=None):
+        """
+        Wait until the thread terminates and returns the result.
+
+        See: `threading.Thread.join`.
+        """
+        super().join(timeout)
+        return self.result
+
     @classmethod
-    def started(cls, func, *args, **kwargs):
-        th = cls(func, *args, **kwargs)
+    def started(cls, func: Callable, *args, **kwargs) -> 'ThreadCall':
+        """
+        Create and start a thread.
+
+        Parameters
+        ----------
+        func : callable
+            Function or method to call.
+        args
+            Postional arguments passed to `func()`.
+        kwargs
+            Named arguments passed to `func()`.
+
+        Result is returned by `ThreadCall.join()`
+        """
+        th: ThreadCall = cls(func, *args, **kwargs)
         th.start()
         return th
 
 
 class ThreadPool:
     """
-    Async with-statement.
+    Thread async with-statement.
 
     >>> with ThreadPool() as th:
     >>>     th.start(self.vod_list, url=self.api.series.format(id=id))
@@ -73,22 +123,58 @@ class ThreadPool:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def start(self, func, *args, **kwargs):
+    def start(self, func: Callable, *args, **kwargs) -> ThreadCall:
+        """
+        Creates and starts a thread to call `func(*args, **kwargs)`.
+
+        Parameters
+        ----------
+        func : callable
+            Function or method to call in the thread.
+        args
+            Positional `func` arguments.
+        kwargs
+            Named `func` arguments.
+
+        Returns
+        -------
+        Created thread.
+        """
         th = ThreadCall.started(func, *args, **kwargs)
         self.thread_list.append(th)
         return th
 
-    def start_with_id(self, id, func, *args, **kwargs):
+    def start_with_id(self, id: Any, func: Callable, *args, **kwargs) -> ThreadCall:
+        """
+        Creates and starts a thread to call `func(*args, **kwargs) and assign to given `id`.
+
+        Parameters
+        ----------
+        id : any
+            ID of the thread and key of the `ThreadPool.result_dict`.
+        func : callable
+            Function or method to call in the thread.
+        args
+            Positional `func` arguments.
+        kwargs
+            Named `func` arguments.
+
+        Returns
+        -------
+        Created thread.
+        """
         th = ThreadCall.started(func, *args, **kwargs)
         self.thread_list.append(th)
         self.thread_by_id[id] = th
         return th
 
-    def join(self):
+    def join(self) -> None:
+        """Join all threads by `ThreadCall.join()`."""
         for th in self.thread_list:
             th.join()
 
-    def close(self):
+    def close(self) -> None:
+        """Close `with` statement. Join threads and prepare results."""
         self.join()
         if self.thread_by_id:
             self.result = self.result_dict
@@ -96,11 +182,13 @@ class ThreadPool:
             self.result = self.result_list
 
     @property
-    def result_dict(self):
+    def result_dict(self) -> adict:
+        """`adict` with all results from threads created by `ThreadPool.start_with_id()`."""
         return adict((key, th.result) for key, th in self.thread_by_id.items())
 
     @property
     def result_list(self):
+        """`list` with all results from threads created by `ThreadPool.start()`."""
         return [th.result for th in self.thread_list]
 
 
@@ -158,9 +246,110 @@ class ConcurrentItem:
 
 class Concurrent:
     """
-    Concurrent instance request API.
+    Concurrent instance request API. Allow call many concurrent method call get theirs results in easy way.
 
-    See `SiteMixin.concurrent`.
+    Parameters
+    ----------
+    instance : any or None
+        Object instance to call methods or None to ignore.
+    instance_type : type or None
+        Object instance class to detect instance override. If None type of `instance` is used.
+    locals : bool or dict
+        False to skip locals dict.
+        True to grab locals dict from the caller.
+        `dict` to use dict directly.
+    globals : bool or dict
+        False to skip globals dict.
+        True to grab globals dict from the caller.
+        `dict` to use dict directly.
+    frame_depth : int
+        Number of frames to skip when `locals` or `globals` dicts are taken.
+        That allows use extra functions like `concurrent()`.
+    name: str
+        Concurrent and threads name. Only for mark objects.
+
+    For brief description see `concurrent()`.
+
+    - Methods are called using proxy object created with a `with` statement or its attribute proxy `a`.
+    - Methods are taken from `instance` object, `locals` and `globals` in that order.
+    - Methods are requested like simple call
+    - All method call requests return result index (integer for list or name for attribute).
+
+    `Concurrent` try to find method in given `instance` (if not None), then in `locals` and `globals`.
+    Both `locals` and `globals` could be set as False to ignore them, True to grab from a caller
+    or to `dict` to user date specified by the caller.
+
+    `Concurrent` has two containers to collect threads results. One is a `list` and second is a `dict`.
+    All direct calls append new thread in the list. All attribute calls inserts threads into the dict.
+
+    **Note:** Most important things is that "call" on proxy object *does NOT* call the method directly.
+    It creates a thread instead and starts the thread with the method.
+    All threads are joined on the `with` statement exit.
+
+    By list
+    -------
+    >>> with Concurrent(globals=True) as con:
+    ...     con.foo(1, 2, c=3)
+    ...     con.bar()
+    >>> print(f'foo={con[0]!r}, bar={con[1]!r}')
+
+    Where `foo()` is functions in `globals()` scope.
+
+    Ways to create threads on the list are:
+    >>> con.foo()
+    >>> con._.foo()
+    >>> next(con).foo()
+    >>> con[len(con)].foo()
+    >>> con['_'].foo()
+    >>> con[...].foo()
+
+    By attribute
+    ------------
+    Threads are attribute-like objects in an internal dict.
+    >>> with Concurrent(globals=True) as con:
+    ...     con.a.aa.foo(1, 2, c=3)
+    ...     con.a.bb.bar()
+    >>> print(f'foo={con.a.aa!r}, bar={con.a.bb!r}')
+
+    Where `foo()` is functions in `globals()` scope.
+
+    Ways to create threads on the dict are:
+    >>> con['ee'].foo()
+    >>> con.a.ee.foo()
+    >>> con.an.ee.foo()
+    >>> con.the.ee.foo()
+
+    Results
+    -------
+
+    Same `Concurrent` result methods are created after `with` statement finished to avoid name collision.
+
+    Sequential (added by list) results and mutable (added by attribute) results are stored separately.
+
+    It's possible to get all results (sequential and dict values):
+    >>> con.results()  # list of sequential results and dict values
+
+    ### As list
+
+    `Concurrent` object is sequence after close (`with` statement finished).
+    >>> with Concurrent() as con:
+    ...     ...
+    >>> len(con), con[0], list(con)
+    >>> for result in con: ...
+    >>> con.dict_results()  # returns list of sequential results
+
+    ### Ad dict
+
+    `Concurrent` object has dict-like method after close (`with` statement finished).
+    Except the pure iterator already used to sequential (added by list) results.
+
+    >>> with Concurrent() as con:
+    ...     ...
+    >>> con['abc'], con.a.abc
+    >>> con.keys(), con.values(), con.items()  # generators with len() support
+    >>> len(con.keys())
+    >>> con.dict_results()  # returns dict of mutable result (createed by attribute)
+
     """
 
     def __init__(self, *, instance: Optional[Any] = None, instance_type: Optional[Type] = None,
@@ -270,14 +459,14 @@ class Concurrent:
         return item
 
     def __next__(self):
-        """Pseudo iterator to use unnamed request as `next(con).method(...)`."""
+        """Pseudo iterator to use unnamed (as list) request as `next(con).method(...)`."""
         item = self._new_item()
         self._item_list.append(item)
         return item
 
     @property
     def _(self):
-        """Attribute `_` to use unnamed request as `con._.method(...)`."""
+        """Attribute `_` to use unnamed (as list) request as `con._.method(...)`."""
         item = self._new_item()
         self._item_list.append(item)
         return item
@@ -298,29 +487,59 @@ class Concurrent:
         return len(self._item_list)
 
     def _keys(self) -> Generator[Any, None, None]:
+        """
+        Return a `dict.keys`-like view for mutable (created by attribute) results.
+
+        This method is available as `Concurrent.keys()` after `with` statement finished.
+        """
         return self._item_dict.keys()
 
     def _values(self) -> Generator[Any, None, None]:
+        """
+        Return a `dict.values`-like view for mutable (created by attribute) results.
+
+        This method is available as `Concurrent.values()` after `with` statement finished.
+        """
         if self._active:
             return self._item_dict.values()
         return generator((it.thread.result for it in self._item_dict.values()), length=len(self._item_dict))
 
     def _items(self) -> Generator[Tuple[Any, Any], None, None]:
+        """
+        Return a `dict.items`-like view for mutable (created by attribute) results.
+
+        This method is available as `Concurrent.items()` after `with` statement finished.
+        """
         if self._active:
             return self._item_dict.values()
         return generator(((k, it.thread.result) for k, it in self._item_dict.items()), length=len(self._item_dict))
 
     def _results(self) -> List[Any]:
+        """
+        Return all sequencial (list like) and dict values (attribute like) results as a list.
+
+        This method is available as `Concurrent.results()` after `with` statement finished.
+        """
         if self._active:
             raise RuntimeError('Concurrent is still working')
         return [it.thread.result for it in chain(self._item_list, self._item_dict.values())]
 
     def _list_results(self) -> List[Any]:
+        """
+        Return all sequencial (list like) results as a list.
+
+        This method is available as `Concurrent.list_results()` after `with` statement finished.
+        """
         if self._active:
             raise RuntimeError('Concurrent is still working')
         return [it.thread.result for it in self._item_list]
 
     def _dict_results(self) -> Dict[str, Any]:
+        """
+        Return mutable (attribute like) results as a dict.
+
+        This method is available as `Concurrent.dict_results()` after `with` statement finished.
+        """
         if self._active:
             raise RuntimeError('Concurrent is still working')
         return {k: it.thread.result for k, it in self._item_dict.items()}
@@ -341,7 +560,48 @@ class Concurrent:
 
 def concurrent(instance: Any = None, *, name: Optional[str] = None) -> Concurrent:
     """
-    Call concurent methods.
+    Call concurrent methods in a `with` statement.
+
+    Parameters
+    ----------
+    instance : any or None
+        Object instance to call methods. If None `locals()` and `globals()` will be used.
+    name: str
+        Concurrent and threads name. Only for mark objects.
+
+    Allow call many concurrent method call get theirs results in easy way.
+
+    - Methods are called using proxy object created with a `with` statement or its attribute proxy `a`.
+    - Methods are taken from `instance` object, `locals` and `globals` in that order.
+    - Methods are requested like simple call
+    - All method call requests return result index (integer for list or name for attribute).
+
+    **Note:** Most important things is that "call" on proxy object *does NOT* call the method directly.
+    It creates a thread instead and starts the thread with the method.
+    All threads are joined on the `with` statement exit.
+
+    >>> def foo(x):
+    ...     time.sleep(1)
+    ...     return x**2
+    >>>
+    >>> with concurrent() as con:
+    ...     indexes = [con.foo(x) for x in range(10)]  # by list
+    ...     abc = con.a.abc.foo(10)                    # by attribute
+    ...     xyz = con.a.xyz.foo(11)                    # by attribute
+    ...     x12 = con.foo(12)                          # by list
+    >>> print(indexes, abc, xyz, x12)
+    >>> # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] abc xyz 10
+    >>> print(list(con), con[abc], con[xyz], con[x12])
+    >>> # [0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 144] 100 121 144
+    >>> print(con.results())
+    >>> # [0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 144, 100, 121]
+    >>> print(con.list_results())
+    >>> # [0, 1, 4, 9, 16, 25, 36, 49, 64, 81, 144]
+    >>> print(con.dict_results())
+    >>> # {'abc': 100, 'xyz': 121}
+
+
+    For details see: `Concurrent`.
     """
     if instance is None:
         return Concurrent(locals=True, globals=True, frame_depth=1, name=name)
@@ -356,3 +616,57 @@ class ConcurrentMixin:
         Concurrent instance methods `with` block.
         """
         return Concurrent(instance=self)
+
+
+def thread_it_zipped(function, delay: int, *args: List[List[Any]], **kwargs: Dict[str, List[Any]]) -> List[Any]:
+    """
+    Call `function` in threads with zipped `args` and `kwargs`.
+
+    Parameters
+    ----------
+    function : calable
+        Function to be executed.
+    delay : int
+        Duration of delay between start each thread. Zero means no delay.
+    args
+        Optional positional arguments for the provided function, every argument enter as a list.
+        All `args` and `kwargs` lists must be same length.
+    kwargs
+        Optional named arguments for the provided function, every argument enter as a list.
+        All `args` and `kwargs` lists must be same length.
+
+    Returns
+    -------
+    List of function call results.
+
+    Useful function for executing functions in threads
+
+     - select function
+     - choose delay when needed or enter 0
+     - provide arguments as Lists, ex. thread_it_multi(function, 0, [param], key=[Value list]
+     - all `args` and `kwargs` lists must be same length
+
+    >>> def foo(a, b, *, c):
+    ...     return a + b + c
+    >>>
+    >>> a = [11, 21, 31, 41]
+    >>> b = [12, 22, 32, 42]
+    >>> c = [13, 23, 33, 43]
+    >>> results = thread_it_zipped(foo, 0, a, b, c=c)
+    >>> # [36, 66, 96, 126]
+    >>>
+    >>> # foo() has called four times:
+    >>> # foo(11, 12, c=13)
+    >>> # foo(21, 22, c=23)
+    >>> # foo(31, 32, c=33)
+    >>> # foo(41, 42, c=43)
+    """
+    A = len(args)
+    all_args = zip(*args, *kwargs.values())
+    threads = [ThreadCall(function, *args[:A], **dict(zip(kwargs, args[A:]))) for args in all_args]
+
+    for i, th in enumerate(threads):
+        if i and delay:
+            time.sleep(delay)
+        th.start()
+    return [th.join() for th in threads]
