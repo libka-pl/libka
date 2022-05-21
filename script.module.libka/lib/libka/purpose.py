@@ -50,9 +50,10 @@ def find_purpose(obj: Any, name: str):
         return purpose.get(name)
     none = adict()
     for method in vars(cls).values():
-        purpose = getattr(method, '_libka_purpose', none)
-        if purpose.get(name):
-            if obj is not None and not isinstance(method, MethodType):
-                # bind method
-                method = MethodType(method, obj)
-            return method
+        if callable(method):
+            purpose = getattr(method, '_libka_purpose', none)
+            if purpose.get(name):
+                if obj is not None and not isinstance(method, MethodType):
+                    # bind method
+                    method = MethodType(method, obj)
+                return method

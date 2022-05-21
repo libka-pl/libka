@@ -80,7 +80,7 @@ class ListItem:
     def mode(self, value):
         playable = value in ('play', 'playable')
         folder = value in ('folder', 'menu')
-        self.setProperty('isPlayable', 'true' if playable else 'false')
+        self.setProperty('IsPlayable', 'true' if playable else 'false')
         self.setIsFolder(folder)
         self._libka_folder = folder
 
@@ -525,7 +525,8 @@ class AddonDirectory:
         # properties
         if properties is not None:
             item.setProperties(properties)
-        item.setProperty('isPlayable', 'true' if playable else 'false')
+        if playable:
+            item.setProperty('IsPlayable', 'true')
         if position is not None:
             item.setProperty('SpecialSort', position)
         # menu
@@ -538,8 +539,8 @@ class AddonDirectory:
             info.setdefault('title', entry.title)
         if descr is not None:
             info['plot'] = descr
-            info.setdefault('plotoutline', descr)
-            info.setdefault('tagline', descr)
+            # info.setdefault('plotoutline', descr)
+            # info.setdefault('tagline', descr)
         if season is not None:
             info['season'] = season
         if episode is not None:

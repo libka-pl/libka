@@ -149,6 +149,18 @@ msgctxt "#32329"
 msgid "Yesterday"
 msgstr ""
 
+msgctxt "#32330"
+msgid "Options"
+msgstr ""
+
+msgctxt "#32331"
+msgid "Login"
+msgstr ""
+
+msgctxt "#32332"
+msgid "Logout"
+msgstr ""
+
 #~ msgctxt "#32304"
 #~ msgid "Search options"
 #~ msgstr ""

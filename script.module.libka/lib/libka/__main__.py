@@ -71,39 +71,7 @@ class MyPlugin(SimplePlugin):
         # print('GH REPO:', data['name'])
         # return
 
-        self.site = Site()
-        another_site = Site('https://doc.libka.pl/libka/')
-        print('---')
-        with self.site.concurrent() as con:
-            con.a.aa.txtget('https://docs.python.org/3/library')
-            con['bb'].txtget('https://mit-license.org')
-            con.a.cc(another_site).txtget('utils.html')
-        print(len(con.a.aa), len(con.a['bb']), len(con['cc']))
-        print([len(v) for v in con.values()])
-        print([f'{k}={len(v)}' for k, v in con.items()])
-        # print(dict(con.a))
-
-        print('---')
-        with self.concurrent() as con:
-            con[...].txtget('https://docs.python.org/3/library')
-            # con().txtget('https://mit-license.org')
-            # next(con).txtget('https://mit-license.org')
-            con.txtget('https://mit-license.org')
-            con[another_site].txtget('utils.html')
-        print(len(con[0]), len(con[1]), len(con[2]))
-        print([len(c) for c in con])
-
-        print('---')
-        with self.concurrent() as con:
-            con[...].txtget('https://docs.python.org/3/library')
-            con.txtget('https://mit-license.org')
-            con['bb'].txtget('https://mit-license.org')
-            con.a.cc(another_site).txtget('utils.html')
-        print([len(c) for c in con], '0:', len(con[0]))
-        print([len(v) for v in con.values()])
-        print([f'{k}={len(v)}' for k, v in con.items()])
-
-        return
+        # return self.concurrent()
 
         # self.test_raw()
         print(f'>>>{call(self.foo, 22)}<<<')
@@ -177,6 +145,39 @@ class MyPlugin(SimplePlugin):
     # @search.data
     # def find_best_series(self, name, options):
     #     return [ {}, {} ]
+
+    def concurrent(self):
+        self.site = Site()
+        another_site = Site('https://doc.libka.pl/libka/')
+        print('---')
+        with self.site.concurrent() as con:
+            con.a.aa.txtget('https://docs.python.org/3/library')
+            con['bb'].txtget('https://mit-license.org')
+            con.a.cc(another_site).txtget('utils.html')
+        print(len(con.a.aa), len(con.a['bb']), len(con['cc']))
+        print([len(v) for v in con.values()])
+        print([f'{k}={len(v)}' for k, v in con.items()])
+        # print(dict(con.a))
+
+        print('---')
+        with self.concurrent() as con:
+            con[...].txtget('https://docs.python.org/3/library')
+            # con().txtget('https://mit-license.org')
+            # next(con).txtget('https://mit-license.org')
+            con.txtget('https://mit-license.org')
+            con[another_site].txtget('utils.html')
+        print(len(con[0]), len(con[1]), len(con[2]))
+        print([len(c) for c in con])
+
+        print('---')
+        with self.concurrent() as con:
+            con[...].txtget('https://docs.python.org/3/library')
+            con.txtget('https://mit-license.org')
+            con['bb'].txtget('https://mit-license.org')
+            con.a.cc(another_site).txtget('utils.html')
+        print([len(c) for c in con], '0:', len(con[0]))
+        print([len(v) for v in con.values()])
+        print([f'{k}={len(v)}' for k, v in con.items()])
 
 
 # VideoInfo = namedtuple('VideoInfo', 'title genre duration year')

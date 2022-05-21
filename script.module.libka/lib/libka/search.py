@@ -47,43 +47,54 @@ class Search:
             self.style = ['B']
         self.method = method
 
-    def _json_search_name(self):
+    def _json_search_name(self, *, scope: Optional[str] = None):
         """Key-path in JSON search file."""
-        if self.name is None:
-            return ['history', 'items']
-        return ['history', 'search', self.name, 'items']
+        path = ['history']
+        if self.name is not None:
+            path.extend(('search', self.name))
+        if scope is not None:
+            path.extend(('scope', scope))
+        path.append('items')
+        return path
 
-    @property
-    def history(self) -> List[str]:
+    def get_history(self, *, scope: Optional[str] = None) -> List[str]:
         """Lazy load history entries."""
         if self._history is None:
-            self._history = [SearchItem(**d) for d in self.udata.get(self._json_search_name(), [])]
+            self._history = [SearchItem(**d) for d in self.udata.get(self._json_search_name(scope=scope), [])]
         return self._history
 
-    @history.setter
-    def history(self, entries: List[str]) -> None:
+    def set_history(self, entries: List[str], *, scope: Optional[str] = None) -> None:
         """Save history entries."""
         self._history = list(entries[:self.size])
-        self.udata.set(self._json_search_name(), [d._asdict() for d in self._history])
+        self.udata.set(self._json_search_name(scope=scope), [d._asdict() for d in self._history])
         self.udata.save()
 
-    def _add(self, query: str, options: Dict[str, Any] = None) -> None:
-        history = self.history
+    def delete_history(self, *, scope: Optional[str] = None) -> None:
+        """
+        Remove all search history.
+        """
+        self.udata.remove(self._json_search_name(scope=scope))
+        self.udata.save()
+
+    history = property(get_history, set_history, delete_history)
+
+    def _add(self, query: str, options: Dict[str, Any] = None, *, scope: Optional[str] = None) -> None:
+        history = self.get_history(scope=scope)
         now = datetime.now().replace(microsecond=0)
         now = str(now.astimezone())  # TODO: handle datetime directly
         history.insert(0, SearchItem(query, options, now))
-        self.history = history
+        self.set_history(history, scope=scope)
 
     def refresh(self) -> None:
         self.addon.refresh(self.addon.mkurl(self))
 
     @entry(label=L(32302, 'Search'))
-    def __call__(self) -> None:
+    def __call__(self, *, scope: Optional[str] = None) -> None:
         """Call enter search main view (list of last searches)."""
         with self.addon.directory(cache=False) as kd:
             kd.menu(self.new, label=L(32303, 'New search'), style=self.style, position='top')
             # kd.item(self.options, label=L(32304, 'Search options'), style=self.style, position='top')
-            for index, query in enumerate(self.history):
+            for index, query in enumerate(self.get_history(scope=scope)):
                 if query.options is None:
                     endpoint = call(self.it, query=query.query)
                 else:
@@ -103,7 +114,7 @@ class Search:
         else:
             return method(query)
 
-    def it(self, query: str, options: Dict[str, Any] = None) -> None:
+    def it(self, query: str, options: Dict[str, Any] = None, *, scope: Optional[str] = None) -> None:
         """
         Search query and list found items.
         """
@@ -124,42 +135,42 @@ class Search:
             return
         log.error(f'No search method for search({self.name or ""}).')
 
-    def new(self, query: Optional[str] = None) -> None:
+    def new(self, query: Optional[str] = None, *, scope: Optional[str] = None) -> None:
         """
         New search query. Opens dialog is `query` is None.
         """
         if not query:
             query = xbmcgui.Dialog().input(L(32307, 'Search: enter query'), type=xbmcgui.INPUT_ALPHANUM)
         if query:
-            self._add(query)
-            self.it(query)
+            self._add(query, scope=scope)
+            self.it(query, scope=scope)
 
-    def remove(self, index: int) -> None:
+    def remove(self, index: int, *, scope: Optional[str] = None) -> None:
         """
         Remove search from history by query index (start from zero).
         """
-        history = self.history
+        history = self.get_history(scope=scope)
         try:
             del history[index]
         except IndexError:
             log.warning(f'Can not remove history at {index!r}')
         else:
-            self.history = history
+            self.set_history(history, scope=scope)
             self.refresh()
 
-    def remove_query(self, query: str) -> None:
+    def remove_query(self, query: str, *, scope: Optional[str] = None) -> None:
         """
         Remove search from history by query text.
         """
-        self.history = [item for item in self.history if item.query != query]
+        history = [item for item in self.get_history(scope=scope) if item.query != query]
+        self.set_history(history, scope=scope)
         self.refresh()
 
-    def clear(self) -> None:
+    def clear(self, *, scope: Optional[str] = None) -> None:
         """
         Clear all search history.
         """
-        self.udata.remove(self._json_search_name())
-        self.udata.save()
+        self.delete_history(scope=scope)
         self.refresh()
 
 
