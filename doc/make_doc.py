@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 import subprocess
 from collections import namedtuple
+from string import Formatter
 
 prog, sys.argv[0] = sys.argv[0], 'pdoc3'
 from pdoc.cli import main as pdoc_main, parser as pdoc_arg_parser  # noqa E402
@@ -18,6 +19,26 @@ TOP = Path(__file__).resolve().parent.parent
 Link = namedtuple('Link', 'regex link')
 
 
+class SafeFormatter(Formatter):
+
+    def get_field(self, field_name, args, kwargs):
+        try:
+            return super().get_field(field_name, args, kwargs)
+        except (KeyError, AttributeError, IndexError):
+            return '{%s}' % field_name, ()
+
+    def format_field(self, value, format_spec):
+        input_spec = format_spec
+        method, _, format_spec = format_spec.rpartition(':')
+        try:
+            if method:
+                value = getattr(value.__class__, method)(value)
+            return super().format_field(value, format_spec)
+        except Exception:
+            return '{%s:%s}' % (value, input_spec)
+            # return '{%r:%r}' % (value, input_spec)
+
+
 def remod(mods, link, func_link=None):
     entry = link
     if link.startswith('https') or link.startswith('http'):
@@ -28,7 +49,10 @@ def remod(mods, link, func_link=None):
         if link.startswith('#'):
             link = entry + link
         if link.startswith('https') or link.startswith('http'):
-            link = fr'<a href="{link}"><code>\1.\2</code></a>'
+            if '{' in link:
+                link = fr'<a href="{link}"><code>{{1}}.{{2}}</code></a>'
+            else:
+                link = fr'<a href="{link}"><code>\1.\2</code></a>'
         yield Link(re.compile(fr'<code>({"|".join(mods)})\.(\w+|[A-Z]\w*\.\w+)</code>'), link)
 
 
@@ -78,6 +102,9 @@ LINKS = [
     *remod(['multidict'],
            r'https://\1.readthedocs.io/en/latest/api.html',
            r'https://\1.readthedocs.io/en/latest/\1.html#\1.\2'),
+    *remod(['xbmcaddon', 'xbmcdrm', 'xbmcgui', 'xbmcplugin', 'xbmc', 'xbmcvfs'],
+           r'https://alwinesch.github.io/group__python__{1:lower:}.html',
+           r'https://alwinesch.github.io/group__python__{1:lower:}__{2:lower:}.html'),
 ]
 
 
@@ -97,15 +124,19 @@ def run_pdoc(*modules, out='html'):
 
 
 def tune_html(path='html'):
-    def replace(r):
-        return r.group(0)
+    def replace(m):
+        print(repr(link.link), m.groups())
+        return SafeFormatter().format(link.link, m.group(0), *m.groups())
 
     path = TOP / Path(path)
     for path in path.glob('**/*.html'):
         with open(path) as f:
             src = data = f.read()
         for link in LINKS:
-            data = link.regex.sub(link.link, data)
+            if '{' in link.link:
+                data = link.regex.sub(replace, data)
+            else:
+                data = link.regex.sub(link.link, data)
         if src != data:
             with open(path, 'w') as f:
                 f.write(data)

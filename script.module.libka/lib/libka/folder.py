@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
-# from .logs import log
+from .logs import log
 import xbmcgui
 import xbmcplugin
 
@@ -228,13 +228,28 @@ class AddonDirectory:
     Another str is spited by semicolon (;) to separate sort command.
 
     Single sort command is Kodi case insensitive name (without "SORT_METHOD_"). Then "title" -> SORT_METHOD_TITLE.
-    After bar (|) `label2Mask` can be applied.
 
-    Note. If sort=None and `label2` is used, than item info `code` is overwritten, and mask is forced to "%P".
+    Note. If `sort=None` and `label2` is used, than item info `code` is overwritten, and mask is forced to `"%P"`.
 
-    ### Example
+    See all label masks:
+
+    ### label2Mask
+
+    The single sort command can contain `label2Mask` after a bar (|).
+
+    To show year without sorting use `|%Y`.
+
+    ### labelMask
+
+    The single sort command can also contain `labelMask` between bars (|).
+
+    To show tv-show title (as a label) without sorting use `|%Z|`. Could be combined with `label2Mask`: `|%Z:%Y`.
+
+
+    ### Examples
 
     Three sort methods:
+
     - SORT_METHOD_UNSORTED with "%Y, %D" mask
     - SORT_METHOD_YEAR
     - SORT_METHOD_DURATION
@@ -255,7 +270,7 @@ class AddonDirectory:
 
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
-    def __init__(self, *, addon=None, view=None, sort=None, type='video', image=None, fanart=None,
+    def __init__(self, *, addon=None, view='addons', sort=None, type='video', image=None, fanart=None,
                  format=None, style=None, isort=None, cache=False, update=False, offscreen=True, menu=None):
         if addon is None:
             addon = globals()['addon']
@@ -268,6 +283,7 @@ class AddonDirectory:
         self.fanart = fanart
         self.format = format
         self.style = style
+        self._label_used = False
         self._label2_used = False
         self.sort_list = []
         self._initial_sort = sort
@@ -308,13 +324,18 @@ class AddonDirectory:
             xbmcplugin.setContent(self.addon.handle, self.view)
         # force label2
         if self._initial_sort is None and not self.sort_list:
-            if self._label2_used:
+            if self._label_used and self._label2_used:
+                self.sort_list = [Sort('', labelMask='%L', label2Mask='%P')]
+            elif self._label_used:
+                self.sort_list = [Sort('', labelMask='%L')]
+            elif self._label2_used:
                 self.sort_list = [Sort('', label2Mask='%P')]
+            else:
+                self.sort_list = [Sort('')]
+            if self._label2_used:
                 for it in self.item_list:
                     if isinstance(it.item, ListItem):
                         it.item.set_info('code', it.item.getLabel2())
-            else:
-                self.sort_list = [Sort('')]
         # internal sort
         if self.isort:
             for srt in reversed(self.isort):
@@ -421,6 +442,8 @@ class AddonDirectory:
                 mask1, sep1, mask2 = mask2.rpartition('|')
                 if labelMask is None and mask1:
                     labelMask = mask1
+                elif not sep1:
+                    labelMask = '%L'
                 if label2Mask is None and mask2:
                     label2Mask = mask2
                 if method in ('', 'auto'):
@@ -440,7 +463,7 @@ class AddonDirectory:
         """
         Create new list item, can be added to current directory list.
 
-        new([title,] endpoint, folder=False, playable=False, descr=None, format=None,
+        new([name,] endpoint, folder=False, playable=False, descr=None, format=None,
             image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
             type=None, info=None, art=None, season=None, episode=None)
 
@@ -490,12 +513,27 @@ class AddonDirectory:
             Season number or None if not a season nor an episode.
         episode : int
             Episode number or None if not an episode.
+        label2 : str
+            Item right label, forced by Kodi in many sort methods.
         sort_key: any
             Custom sort key, holt only in libka drirectory, not used in the Kodi
         custom: any
             Custom filed, holt only in libka drirectory, not used in the Kodi
 
         See: https://alwinesch.github.io/group__python__xbmcgui__listitem.html
+
+        Item label
+        ----------
+
+        An item label is taken from (in the order):
+
+        - parameter `label`
+        - first argument (aka *name*)
+        - endpoint title: `@entry(title=...)`
+        - parameter `title`
+        - `info['title']`
+
+        In the case of `label` or *name* default label mask `|%L|` is used if no `sort` is defined.
         """
         # log.error('>>> ENTER...')  # DEBUG
         if offscreen is None:
@@ -506,15 +544,24 @@ class AddonDirectory:
             style = self.style
         if sort_key is None:
             sort_key = self._next_sort_key
+        name = _name
+        log(f'NEW: {label=!r}, {endpoint=!r}, {name=!r}')
         if label is not None and endpoint is None:
-            _name, endpoint = label, _name
-        entry = self.router.mkentry(_name, endpoint, title=title, style=style)
+            name, endpoint = label, name
+        if title is None and info and info.get('title'):
+            _title = info['title']
+        else:
+            _title = title
+        entry = self.router.mkentry(name, endpoint, title=_title, style=style)
         label = entry.label
+        log(f'new: {entry=!r}')
         if label is None:
             if entry.title is None:
                 label = str(entry.url)
             else:
                 label = entry.title
+        else:
+            self._label_used = True
         item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen,
                         sort_key=sort_key, custom=custom)
         if folder is True:
@@ -604,6 +651,7 @@ class AddonDirectory:
             item = xbmcgui.ListItem(title)
         if folder is None:
             folder = ifolder
+        log(f'FOLDER.prepare: {url!r}, item={item!r}, folder={folder!r} label={item.getLabel()!r}')
         return DirectoryItem(url, item, folder)
 
     def _add(self, item, endpoint=None, folder=None):
@@ -784,7 +832,7 @@ class AddonContextMenu(list):
     """
     Thiny wrapper for plugin list item context menu.
 
-    See: xbmcgui.ListItem.
+    See: `xbmcgui.ListItem`.
     """
 
     def __init__(self, *menus, addon):

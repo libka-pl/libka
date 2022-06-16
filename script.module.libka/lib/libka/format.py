@@ -5,15 +5,22 @@ Some string and format tools.
 import re
 import string
 from inspect import isclass, currentframe
+from dataclasses import dataclass
 from typing import (
-    Union,
+    Optional, Union, Callable, Any,
+    List, Dict,
 )
 try:
     from simpleeval import InvalidExpression, EvalWithCompoundTypes, SimpleEval, simple_eval
 # except ModuleNotFoundError:
 except ImportError:
     simple_eval = None
+try:
+    import xbmc
+except ImportError:
+    xbmc = None
 from .iter import neighbor_iter
+from .tools import adict
 
 
 #: Regex type
@@ -24,11 +31,39 @@ regex = type(re.compile(''))
 re_uuid = re.compile(r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}')
 
 #: RegEx for quote: ', ", ''', """
-re_quote = re.compile(r'''(?:"""(?:\\.|.)*?""")|(?:"(?:\\.|.)*?")'''
-                      r"""|(?:'''(?:\\.|.)*?''')|(?:'(?:\\.|.)*?')""")
+re_quote = re.compile(r'''(?:"""(?P<q1>(?:\\.|.)*?)""")|(?:"(?P<q2>(?:\\.|.)*?)")'''
+                      r"""|(?:'''(?P<q3>(?:\\.|.)*?)''')|(?:'(?P<q4>(?:\\.|.)*?)')""", re.DOTALL)
+
+#: RegEx for find field-name matching style
+re_field_name = re.compile(fr'[^\W\d]+(?P<part>\.[^\W\d]+|\[\s*\w+\s*\]|\[\s*(?:{re_quote.pattern})\s*\])*(?:\.\*|\[\*\])?',
+                           re.IGNORECASE | re.DOTALL)
+
+#: RegEx for replace custom-named color to regular color
+RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
+
+#: Translate dict for string escape.
+ESCAPE_TRANS = {
+    '\\': '\\\\',
+    '\'': '\\\'',
+    '\"': '\\\"',
+    '\a': '\\a',
+    '\b': '\\b',
+    '\f': '\\f',
+    '\n': '\\n',
+    '\r': '\\r',
+    '\t': '\\t',
+    '\v': '\\v',
+    '\000': '\\000',
+}
 
 
-def fparser(s):
+def str_escape(s):
+    r"""Escape string, e.g. `\n` -> `\\n`."""
+    esc = ESCAPE_TRANS
+    return ''.join(esc.get(c, c) for c in s)
+
+
+def fparser(s, *, eol_escape=False):
     """
     Like _string.formatter_parser() returns (literal_text, field_name, format_spec, conversion).
     Supports "{}" inside field_name, can work with simple_eval.
@@ -71,7 +106,10 @@ def fparser(s):
             rx = re_quote.match(s, i) if lvl > 0 and c in ('"', "'") else None
             if rx:
                 a, b = rx.span()
-                vec[oi] += s[a:b]
+                if eol_escape:
+                    vec[oi] += s[a:b].replace('\n', '\\n')
+                else:
+                    vec[oi] += s[a:b]
                 i += b - a - 1
             else:
                 vec[oi] += c
@@ -80,6 +118,19 @@ def fparser(s):
         raise ValueError("Single '{' encountered in format string")
     if vec[0] or vec[1] is not None:
         yield vec
+
+
+@dataclass
+class StylizeSettings:
+    #: Default style.
+    style: Union[List[str], str] = None
+    #: Info values (kept by reference).
+    info: Dict[str, Any] = None
+    #: Method to resolve cutom color names `[COLOR :name]` or
+    #: color dict (to find missing custom colors).
+    colors: Union[Callable, Dict[str, str]] = None
+    #: Default extra keyword arguments for format styles (kept by reference).
+    kwargs: Dict[str, Any] = None
 
 
 class SafeFormatter(string.Formatter):
@@ -91,24 +142,11 @@ class SafeFormatter(string.Formatter):
     ("{a + 2}", a=42)   -> "44"
     """
 
-    _escape_trans = {
-        '\\': '\\\\',
-        '\'': '\\\'',
-        '\"': '\\\"',
-        '\a': '\\a',
-        '\b': '\\b',
-        '\f': '\\f',
-        '\n': '\\n',
-        '\r': '\\r',
-        '\t': '\\t',
-        '\v': '\\v',
-        '\000': '\\000',
-    }
-
-    def __init__(self, *, safe=True, evaluate=True, escape=True, extended=False, names=None, functions=None,
-                 raise_empty=False):
+    def __init__(self, *, safe: bool = True, evaluate: bool = True, escape: bool = True, extended: bool = False,
+                 names=None, functions=None, raise_empty: bool = False,
+                 stylize: Optional[StylizeSettings] = None, styles: Optional[Dict[str, Union[List[str], str]]] = None):
         super().__init__()
-        self.safe = safe
+        self.safe: bool = safe
         self.evaluator = None
         self.evaluator_class = None
         if isclass(evaluate):
@@ -120,9 +158,18 @@ class SafeFormatter(string.Formatter):
                 self.evaluator_class = EvalWithCompoundTypes
         self.evaluator_names = names
         self.evaluator_functions = functions
-        self.escape = escape
-        self.extended = extended
-        self.raise_empty = raise_empty
+        #: Add support for `!e` convert for escape strings.
+        self.escape: bool = escape
+        #: Use extended parser. Should be true for most `evaluate` expresions.
+        self.extended: bool = extended
+        #: Raise exception if value is empty (not only non-exists). Usefull with `sectfmt()`.
+        self.raise_empty: bool = raise_empty
+        #: Method to stylize values.
+        self.stylize_settings: StylizeSettings = StylizeSettings() if stylize is None else stylize
+        #: Styles for values. Name of value is key in `styles` dict (kept by reference).
+        self.styles: Dict[str, Union[List[str], str]] = {} if styles is None else styles
+        #: Stack for filed names. Appended in `get_field`, popped in `format_field`.
+        self._field_name_stack: List[str] = []
 
     def parse(self, format_string):
         if self.extended:
@@ -138,7 +185,14 @@ class SafeFormatter(string.Formatter):
             else:
                 names = kwargs
             self.evaluator = self.evaluator_class(names=names, functions=self.evaluator_functions)
-        return super().vformat(format_string, args, kwargs)
+        try:
+            return super().vformat(format_string, args, kwargs)
+        except Exception as exc:
+            if self.safe:
+                if xbmc:
+                    xbmc.log(f'Formatter {format_string!r} failed: {exc!r}', xbmc.LOGERROR)
+            else:
+                raise
 
     def get_value(self, key, args, kwargs):
         try:
@@ -153,27 +207,29 @@ class SafeFormatter(string.Formatter):
 
     def convert_field(self, value, conversion):
         if self.escape and conversion == 'e':
-            esc = self._escape_trans
-            return ''.join(esc.get(c, c) for c in str(value))
+            return str_escape(str(value))
         return super().convert_field(value, conversion)
 
     def get_field(self, field_name, args, kwargs):
+        self._field_name_stack.append(field_name.strip())
         try:
             return super().get_field(field_name, args, kwargs)
         except (KeyError, AttributeError, IndexError):
             if field_name.isdigit():
+                self._field_name_stack.pop()
                 raise  # missing positional argument
         if self.evaluator:
             try:
-                return self.evaluator.eval(field_name), ()
+                return self.evaluator.eval(field_name), field_name
             except InvalidExpression:
                 pass
         return self.missing_field(field_name, args, kwargs)
 
     def missing_field(self, field_name, args, kwargs):
-        return '{%s}' % field_name, ()
+        return '{%s}' % field_name, field_name
 
     def format_field(self, value, format_spec):
+        field_name = self._field_name_stack.pop()
         input_spec = format_spec
         format_spec, sep, val = format_spec.partition('!!')
         unknown = isinstance(value, str) and value[:1] == '{' and value[-1:] == '}'
@@ -194,11 +250,59 @@ class SafeFormatter(string.Formatter):
         elif unknown and not self.safe:
             raise KeyError(value)
         try:
-            return super().format_field(value, format_spec)
+            result = super().format_field(value, format_spec)
+            last_field_name = ''  # only for assertion
+            while field_name:
+                assert field_name != last_field_name
+                last_field_name = field_name
+                field_style = self.styles.get(field_name)
+                if field_style is None:
+                    norm_field_name = re_quote.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
+                    field_style = self.styles.get(norm_field_name)
+                if field_style is not None:
+                    result = self.stylize(result, field_style)
+                    break
+                if field_name == '*':
+                    break
+                m = re_field_name.fullmatch(field_name)
+                if not m:
+                    break
+                part = m.group('part')
+                if not part:
+                    field_name = '*'
+                elif '[' in part:
+                    end = m.start('part')
+                    field_name = f'{field_name[:end]}[*]'
+                else:
+                    end = m.start('part')
+                    field_name = f'{field_name[:end]}.*'
+            return result
         except Exception:
             if self.safe:
                 return '{%r:%r}' % (value, input_spec)
             raise
+
+    def stylize(self, text, style=None, *, info=None, formatter=None, colors=None, **kwargs):
+        ss = self.stylize_settings
+        if style is None:
+            style = ss.style
+        if ss.info is not None:
+            if info is None:
+                info = ss.info
+            else:
+                info = {**ss.info, **info}
+        if ss.kwargs is not None:
+            info = {**ss.kwargs, **kwargs}
+        if callable(ss.colors):
+            # external color getter, skip `colors` dict update
+            if not callable(colors):
+                colors = ss.colors
+        elif ss.colors is not None:
+            if colors is None:
+                colors = ss.colors
+            else:
+                colors = {**ss.colors, **colors}
+        return stylize(text, style, info=info, formatter=self, colors=colors, **kwargs)
 
 
 def safefmt(fmt, *args, **kwargs):
@@ -206,7 +310,7 @@ def safefmt(fmt, *args, **kwargs):
     return SafeFormatter().vformat(fmt, args, kwargs)
 
 
-def vfstr(fmt, args, kwargs, depth=1):
+def vfstr(fmt, args, kwargs, *, depth=1, extended=False):
     """Realize f-string formatting."""
     frame = currentframe().f_back
     for _ in range(depth):
@@ -219,7 +323,7 @@ def vfstr(fmt, args, kwargs, depth=1):
         dir, vars,
         str,
     )}
-    return SafeFormatter(functions=functions).vformat(fmt, args, data)
+    return SafeFormatter(functions=functions, extended=extended).vformat(fmt, args, data)
 
 
 def fstr(*args, **kwargs):
@@ -262,7 +366,7 @@ def _vsectfmt(fmt, args, kwargs, *, formatter=None):
         yield False, text
 
     if formatter is None:
-        formatter = SafeFormatter(safe=False)
+        formatter = SafeFormatter(safe=False, raise_empty=True)
     try:
         parts = (_vsectfmt(text, args, kwargs, formatter=formatter) if sect
                  else formatter.vformat(re_sectfmt_text.sub(r'\1', text), args, kwargs)
@@ -302,6 +406,48 @@ def sectfmt(fmt, *args, **kwargs):
     return vsectfmt(fmt, args, kwargs, allow_empty=False)
 
 
+def stylize(text, style, *, info=None, formatter=None, colors=None, **kwargs):
+    """
+    Style formating.
+    """
+    if colors is None:
+        def replace_color(m):
+            if xbmc:
+                xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGERROR)
+            return '[COLOR gray]'
+    elif callable(colors):
+        def replace_color(m):
+            return '[COLOR %s]' % colors(m.group(1))
+    else:
+        def replace_color(m):
+            return colors.get(m.group(1), 'gray')
+
+    if style is not None:
+        if formatter is None:
+            formatter = SafeFormatter(extended=True)
+        info = adict(info or ())
+        if isinstance(style, str):
+            style = (style, )
+        for s in reversed(style):
+            if not s:
+                pass
+            elif s[0].isalpha():
+                text = f'[{s}]{text}[/{s.split(None, 1)[0]}]'
+            elif s == '[]':  # brackets with zero-width spaces to avoid BB-code sequence
+                text = f'[\u200b{text}\u200b]'
+            elif len(s) <= 2:  # another brackets etc.
+                text = f'{s[0]}{text}{s[-1]}'
+            else:
+                text = formatter.format(s, text, text=text, info=info, **kwargs)
+    try:
+        text = RE_TITLE_COLOR.sub(replace_color, text)
+    except TypeError:
+        if xbmc:
+            xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGERROR)
+        raise
+    return text
+
+
 def find_re(pattern: Union[str, regex], text: str, default: str = '', flags: int = 0, many: bool = True) -> str:
     """
     Search regex pattern, return sub-expr(s) or whole found text or default.
@@ -328,6 +474,7 @@ def find_re(pattern: Union[str, regex], text: str, default: str = '', flags: int
 
 
 if __name__ == '__main__':
+    print(SafeFormatter(extended=True).format('>{"To jest\tto\n"!e}<'))
     # debug
     import random
 
@@ -346,4 +493,26 @@ if __name__ == '__main__':
     data = {'title': 'Go to...'}
     fmt = '[{series[title]} – ][S{info[season]:02d}][E{info[episode]:02d}][: {title}]'
     print(sectfmt(fmt, series=series, info=info, **data))
+    fmt = '[{series[title]} – ][B][S{info[season]:02d}][E{info[episode]:02d}][/B][: {title}]'
+    print(sectfmt(fmt, series=series, info=info, **data))
     print(sectfmt(fmt, series=series, info=info, title=''))
+    s = 'To jest\tto\n'
+    print(safefmt('>{!e}<', s))
+    print(SafeFormatter(extended=True).format('>{"To jest\tto\n"!e}<'))
+    c = adict(x=11, y=22, z=[330, 331])
+    styles = {
+        'a': 'I',
+        'b': ['B', '*'],
+        'c': 'C',
+        'c.x': 'X',
+        'c.*': 'Y',
+        'c.z[0]': 'Z0',
+        'c.z[*]': 'ZZ',
+        'c[*]': 'Z',
+        'c[y]': 'ZY1',
+        # 'c["y"]': 'ZY2',
+        # "c['y']": 'ZY3',
+    }
+    fmt = SafeFormatter(extended=True, styles=styles).format
+    print(fmt('{a}, {b}, ({c.x}, {c.y}, {c.z[0]}, {c.z[1]}, {c["x"]}, {c["y"]})',
+              a=1, b=2, c=c))

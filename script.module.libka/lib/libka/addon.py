@@ -19,7 +19,8 @@ from .folder import AddonDirectory
 from .routing import Router, subobject, DirEntry, Call
 from .menu import MenuMixin
 from .commands import Commands
-from .format import SafeFormatter
+from .format import SafeFormatter, StylizeSettings
+from .tools import adict
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
 
@@ -50,8 +51,6 @@ class AddonMixin(BaseAddonMixin):
     Created router (if router is None) handle global @entry decorators.
     """
 
-    _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
-
     settings = subobject()
 
     def __init__(self, *args, **kwargs):
@@ -71,14 +70,18 @@ class AddonMixin(BaseAddonMixin):
         #: Default userdata
         self.user_data = Storage(addon=self)
         #: User defined colors used in "[COLOR :NAME]...[/COLOR]"
-        self.colors = {
+        self.colors = adict({
             'gray': 'gray',
             'grey': 'gray',
-        }
+        })
+        #: User defined styles for text / label formatting.
+        self.styles = adict({
+        })
         #: Resources
         self.resources = Resources(self)
-        #: Defualt dafe text formatter
-        self.formatter = SafeFormatter(extended=True)
+        #: Default text formatter.
+        self.formatter = SafeFormatter(extended=True,
+                                       stylize=StylizeSettings(colors=self.get_color))
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.id!r})'
@@ -91,21 +94,8 @@ class AddonMixin(BaseAddonMixin):
     def get_color(self, name):
         return self.colors.get(name, 'gray')
 
-    def format_title(self, text, style, n=0):
-        def get_color(m):
-            return '[COLOR %s]' % self.get_color(m.group(1))
-
-        if style is not None:
-            if not isinstance(style, str) and isinstance(style, Sequence):
-                style = '%s{}%s' % (''.join(f'[{a}]' for a in style),
-                                    ''.join(f'[/{a.split(None, 1)[0]}]' for a in reversed(style)))
-            text = self.formatter.format(style, text, title=text, text=text, n=n, colors=self.colors)
-        try:
-            text = self._RE_TITLE_COLOR.sub(get_color, text)
-        except TypeError:
-            log.error(f'Incorrect label/title type {type(text)}')
-            raise
-        return text
+    def format_title(self, text, style, n=0, info=None):
+        return self.formatter.stylize(text, style, n=n, info=info, color=self.colors)
 
     def open_settings(self):
         """Deprecated. Use Addon.settings()."""
@@ -151,8 +141,6 @@ class Addon(MenuMixin, AddonMixin):
     SAFE_CALL = False
     #: Default root (home) entry method name or list of methods (find first).
     ROOT_ENTRY = ('home', 'root')
-
-    _RE_TITLE_COLOR = re.compile(r'\[COLOR +:(\w+)\]')
 
     search = subobject()
 
