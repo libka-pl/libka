@@ -6,7 +6,7 @@ Simple menu module to generate plugin root folders.
 """
 
 from typing import (
-    Optional, Union, Any,
+    Optional, Union, Any, Callable,
     List, Dict, Set, Iterator,
     TYPE_CHECKING,
 )
@@ -148,14 +148,20 @@ class Menu:
                         process_item(addon=addon, kdir=kdir, index_path=index_path, item=it)
                     blk.sort_items()
             elif self.call:
+                method: Callable
                 if isinstance(self.call, str):
-                    kdir.menu(self.title, getattr(addon, self.call, self.call))
+                    target = method = getattr(addon, self.call, self.call)
                 elif isinstance(self.call, Call) and self.call.method:
                     method = getattr(addon, self.call.method, self.call.method)
-                    kdir.menu(self.title, Call(method=method, args=self.call.args,
-                                               kwargs=self.call.kwargs, raw=self.call.raw))
+                    target = Call(method=method, args=self.call.args, kwargs=self.call.kwargs, raw=self.call.raw)
                 else:
-                    kdir.menu(self.title, self.call)
+                    target = method = self.call
+                title: str = self.title
+                entry = getattr(method, '_libka_endpoint', None)
+                if entry is not None:
+                    if entry.title is not None:
+                        title = entry.title
+                kdir.menu(title, target)
             elif self.items:
                 kdir.menu(self.title, call(addon.menu, ','.join(map(str, index_path))))
             else:
