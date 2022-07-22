@@ -7,6 +7,7 @@ Author: rysson + stackoverflow
 import pickle
 from base64 import b64encode, b64decode
 from collections.abc import Mapping
+from dataclasses import fields
 from functools import partial, update_wrapper
 from functools import WRAPPER_ASSIGNMENTS
 import copy
@@ -17,7 +18,7 @@ from types import ModuleType
 from typing import (
     Type, Callable,
     Optional, Union, Any,
-    Dict, Tuple,
+    Dict, List, Tuple,
 )
 
 
@@ -354,3 +355,73 @@ class generator:
         if self._length is None:
             TypeError(f'object of type {type(self._generator)} has no len()')
         return self._length
+
+
+# Author: rysson
+class SingletonMetaclass(type):
+    """Simple singleton metaclass."""
+
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMetaclass, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+# Author: rysson
+def sequential_dataclass(cls):
+    """
+    Make sequence from `dataclass` decorator.
+
+    >>> @sequential_dataclass
+    >>> @dataclass
+    >>> class A:
+    >>>     a: int = 1
+    >>>     b: int = 2
+    >>>     c: str = 'xyz'
+    >>>
+    >>> len(A())  # 3
+    >>> A()[-1]   # 'xyz'
+    >>> A()[:2]   # [1, 2]
+    """
+    def __iter__(self):
+        """Iterator for dataclass fields."""
+        return iter(getattr(self, f.name) for f in fields(self))
+
+    def __reversed__(self):
+        return iter(getattr(self, f.name) for f in reversed(fields(self)))
+
+    def __len__(self):
+        """Length for dataclass fields."""
+        return len(fields(self))
+
+    def __getitem__(self, index: Union[int, slice]):
+        """List-like access to dataclass fields."""
+        if type(index) == slice:
+            return [getattr(self, f.name) for f in fields(self)[index]]
+        return getattr(self, fields(self)[index].name)
+
+    def __setitem__(self, index: Union[int, slice], value: Union[Any, List[Any]]):
+        """List-like set dataclass fields."""
+        if type(index) == slice:
+            ff = fields(self)[index]
+            for n, val in enumerate(value):
+                setattr(self, ff[n].name, val)
+            if n < len(ff):
+                raise ValueError('Value length mismatch')
+        else:
+            setattr(self, fields(self)[index].name, value)
+
+    def __contains__(self, value: Any):
+        return any(getattr(self, f.name) == value for f in fields(self))
+
+    cls.__iter__ = __iter__
+    cls.__reversed__ = __reversed__
+    cls.__len__ = __len__
+    cls.__getitem__ = __getitem__
+    cls.__setitem__ = __setitem__
+    cls.__contains__ = __contains__
+    cls.index = lambda self: 0
+    cls.count = lambda self: 0
+    return cls

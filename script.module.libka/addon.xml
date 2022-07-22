@@ -4,8 +4,11 @@
 		<import addon="xbmc.python" version="3.0.0" />
 		<import addon="script.module.requests" />
 		<import addon="script.module.urllib3" />
+		<import addon="script.skin.helper.colorpicker" />
+		<import addon="script.module.pil" />
 	</requires>
 	<extension point="xbmc.python.module" library="lib" />
+	<extension point="xbmc.python.library" library="lib/main.py" />
 	<extension point="xbmc.addon.metadata">
 		<summary lang="en_GB">Helper framework for Kodi Addons</summary>
 		<summary lang="pl_PL">Biblioteka dla dodatków Kodi</summary>

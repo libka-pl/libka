@@ -6,20 +6,31 @@ like `Plugin`, `SimpleAddon`, `SimplePlugin`. Just use `self.settings.my_key` in
 for access to `my_key` setting.
 """
 
+import re
 from collections.abc import Sequence
 from collections import namedtuple
 from typing import (
     TYPE_CHECKING,
-    Any, Callable, Type,
-    Dict, Tuple,
+    Any, Union, Callable, Type,
+    Dict, List, Tuple,
 )
 from .logs import log
 from .routing import entry
 from .lang import L
+from .format import stylize
+from .tools import adict
 if TYPE_CHECKING:
     from .addon import Addon
     from xbmcaddon import Settings as XmbcSettings
     from xmbcaddon import Addon as XbmcAddon
+
+
+#: Split regex for settings style value list.
+re_style_split = re.compile(r'(?<!\\);')
+#: Replace escape sequences in settings style value.
+re_style_unescape = re.compile(r'\\([:;,.$\\])')
+#: Escape settings style value (on style writting).
+re_style_escape = re.compile(r'[;\\]')
 
 
 class MISSING:
@@ -285,3 +296,22 @@ class Settings:
             super(Settings, self).__delattr__(key)
         else:
             self.set(key, None)
+
+    def get_style(self, name: str):
+        """Get style from settings."""
+        return [re_style_unescape.sub(r'\1', val)
+                for val in re_style_split.split(self.get_string(f'{name}_style_value'))]
+
+    def set_style(self, name: str, style: Union[str, List[str]]):
+        """Set style value and preview."""
+        if isinstance(style, str):
+            style = [style]
+        # value (semicolon separated list)
+        val = ';'.join(re_style_escape.sub(r'\\\1', s) for s in style)
+        self.set_string(f'{name}_style_value', val)
+        # preview
+        self.set_string(f'{name}_style_preview', stylize('ABC', style))
+
+    def get_styles(self, *names):
+        """Get the styles and return `adict`."""
+        return adict((name, self.get_style(name)) for name in names)

@@ -7,7 +7,7 @@ import string
 from inspect import isclass, currentframe
 from dataclasses import dataclass
 from typing import (
-    Optional, Union, Callable, Any,
+    Optional, Union, Callable, Any, Type,
     List, Dict,
 )
 try:
@@ -34,8 +34,12 @@ re_uuid = re.compile(r'[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}')
 re_quote = re.compile(r'''(?:"""(?P<q1>(?:\\.|.)*?)""")|(?:"(?P<q2>(?:\\.|.)*?)")'''
                       r"""|(?:'''(?P<q3>(?:\\.|.)*?)''')|(?:'(?P<q4>(?:\\.|.)*?)')""", re.DOTALL)
 
+#: RegEx for quote: ', ", ''', """ with optional spaces
+re_quote_s = re.compile(fr'\s*(?:{re_quote.pattern})\s*', re.DOTALL)
+
 #: RegEx for find field-name matching style
-re_field_name = re.compile(fr'[^\W\d]+(?P<part>\.[^\W\d]+|\[\s*\w+\s*\]|\[\s*(?:{re_quote.pattern})\s*\])*(?:\.\*|\[\*\])?',
+re_field_name = re.compile((fr'[^\W\d]+(?P<part>\.[^\W\d]+|\[\s*\w+\s*\]|\[\s*(?:{re_quote.pattern})\s*\])*'
+                            r'(?P<any>\.\*|\[\*\])?'),
                            re.IGNORECASE | re.DOTALL)
 
 #: RegEx for replace custom-named color to regular color
@@ -137,18 +141,27 @@ class SafeFormatter(string.Formatter):
     r"""
     Safe string formatter.
 
-    Leave unknown arguments, or use default value or evaluate expr:
-    ("{a:!!def} {999}") -> "def {999}"
-    ("{a + 2}", a=42)   -> "44"
+    Leave unknown arguments (when `safe` is true), or use default value or evaluate expr:
+    >>> ("{a:!!def} {999}") # -> "def {999}"
+    >>> ("{a + 2}", a=42)   # -> "44"
+
+    All dicts (`names`, `functions`, `default_formats`, `styles`) are stored directly, you can update them in runtime.
     """
 
     def __init__(self, *, safe: bool = True, evaluate: bool = True, escape: bool = True, extended: bool = False,
-                 names=None, functions=None, raise_empty: bool = False,
-                 stylize: Optional[StylizeSettings] = None, styles: Optional[Dict[str, Union[List[str], str]]] = None):
+                 names: Optional[Dict[str, Any]] = None,
+                 functions: Optional[Dict[str, Callable]] = None,
+                 raise_empty: bool = False,
+                 default_formats: Optional[Dict[str, str]] = None,
+                 stylize: Optional[StylizeSettings] = None,
+                 styles: Optional[Dict[str, Union[List[str], str]]] = None):
         super().__init__()
+        #: True, for safe formatting: ${unkown}.
         self.safe: bool = safe
+        #: Evaluator instance, created in `vformat()`.
         self.evaluator = None
-        self.evaluator_class = None
+        #: Evaluator class used to create evaluator instance.
+        self.evaluator_class: Type = None
         if isclass(evaluate):
             self.evaluator_class = evaluate
         elif simple_eval and evaluate:
@@ -156,14 +169,18 @@ class SafeFormatter(string.Formatter):
                 self.evaluator_class = SimpleEval
             else:
                 self.evaluator_class = EvalWithCompoundTypes
-        self.evaluator_names = names
-        self.evaluator_functions = functions
+        #: Default variable names for evaluator.
+        self.evaluator_names: Dict[str, Any] = names
+        #: Functions for evaluator.
+        self.evaluator_functions: Dict[str, Callable] = functions
         #: Add support for `!e` convert for escape strings.
         self.escape: bool = escape
         #: Use extended parser. Should be true for most `evaluate` expresions.
         self.extended: bool = extended
         #: Raise exception if value is empty (not only non-exists). Usefull with `sectfmt()`.
         self.raise_empty: bool = raise_empty
+        #: Default formats for variables.
+        self.default_formats: Dict[str, str] = {} if default_formats is None else default_formats
         #: Method to stylize values.
         self.stylize_settings: StylizeSettings = StylizeSettings() if stylize is None else stylize
         #: Styles for values. Name of value is key in `styles` dict (kept by reference).
@@ -230,6 +247,9 @@ class SafeFormatter(string.Formatter):
 
     def format_field(self, value, format_spec):
         field_name = self._field_name_stack.pop()
+        if not format_spec:
+            norm_field_name = re_quote_s.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
+            format_spec = self.default_formats.get(norm_field_name) or ''
         input_spec = format_spec
         format_spec, sep, val = format_spec.partition('!!')
         unknown = isinstance(value, str) and value[:1] == '{' and value[-1:] == '}'
@@ -257,18 +277,23 @@ class SafeFormatter(string.Formatter):
                 last_field_name = field_name
                 field_style = self.styles.get(field_name)
                 if field_style is None:
-                    norm_field_name = re_quote.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
+                    norm_field_name = re_quote_s.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
                     field_style = self.styles.get(norm_field_name)
                 if field_style is not None:
                     result = self.stylize(result, field_style)
                     break
                 if field_name == '*':
+                    # print(f' - {field_name=!r}, m=')
                     break
                 m = re_field_name.fullmatch(field_name)
                 if not m:
                     break
+                # print(f' - {field_name=!r}, m={m.groupdict()}')
                 part = m.group('part')
-                if not part:
+                if m['any']:
+                    end = m.start('any')
+                    field_name = f'{field_name[:end]}'
+                elif not part:
                     field_name = '*'
                 elif '[' in part:
                     end = m.start('part')
@@ -282,7 +307,58 @@ class SafeFormatter(string.Formatter):
                 return '{%r:%r}' % (value, input_spec)
             raise
 
-    def stylize(self, text, style=None, *, info=None, formatter=None, colors=None, **kwargs):
+    def stylize(self,
+                text:            str,
+                style:           Optional[Union[str, List[str]]] = None,
+                *,
+                info:            Optional[Dict[str, Any]] = None,
+                colors:          Optional[Dict[str, str]] = None,
+                default_formats: Optional[Dict[str, str]] = None,
+                **kwargs):
+        """
+        Style formatting.
+
+        Parameters
+        ----------
+        text: str
+            A text to stylize.
+        style: str or list of str
+            Style(s) to apply on the text.
+        info: dict of str, str
+            Optional extra values in the `info` variable. Update a `self.stylize.info`.
+        colors: dict of str, str
+            Optional color dictionary used in `[COLOR :<name>]`. Update a `self.stylize.colors`.
+        default_formats: dict of str, str
+            Optional string format for any `kwargs` variable. Update a `self.default_formats`.
+        kwargs:
+            Extra variables for text formatting.
+
+        The `text` is formatted as safe f-string. `style` is a single format or list of formats
+        starting from outside one. Every Kodi label style could be used or special characters
+        (length of one or two) like `[]` or `*` or text format.
+
+        Colors could be in a format `COLOR :name` when the `name` is a key in `colors` dict.
+
+        Every f-string variable is taken from the `kwargs` arguments or `info` dict.
+
+        Exapmle
+        -------
+        >>> fmt.stylize('abc', 'B')
+        >>> # '[B]abc[/B]'
+
+        >>> fmt.stylize('abc', ['COLOR red', '«»', 'B'])
+        >>> # '[COLOR red]«[B]abc[/B]»[COLOR]'
+
+        >>> fmt.stylize('abc: {answer}', 'B', answer=42)
+        >>> # '[B]abc: 42[/B]'
+
+        >>> fmt.stylize('abc', '>>>{}<<<')
+        >>> # '>>>abc<<<'
+
+        >>> fmt.stylize('', 'a={a}, bc={b.c}', default_formats('a': '02d', 'b.c': '03d'),
+        ...             a=1, b={'c': 2})
+        >>> # 'a=01, bc=002'
+        """
         ss = self.stylize_settings
         if style is None:
             style = ss.style
@@ -291,18 +367,25 @@ class SafeFormatter(string.Formatter):
                 info = ss.info
             else:
                 info = {**ss.info, **info}
-        if ss.kwargs is not None:
-            info = {**ss.kwargs, **kwargs}
-        if callable(ss.colors):
-            # external color getter, skip `colors` dict update
-            if not callable(colors):
-                colors = ss.colors
-        elif ss.colors is not None:
-            if colors is None:
-                colors = ss.colors
-            else:
-                colors = {**ss.colors, **colors}
-        return stylize(text, style, info=info, formatter=self, colors=colors, **kwargs)
+        my_default_format = self.default_formats
+        try:
+            if default_formats:
+                self.default_formats = {**self.default_formats, **default_formats}
+            if ss.kwargs is not None:
+                info = {**ss.kwargs, **kwargs}
+            if callable(ss.colors):
+                # external color getter, skip `colors` dict update
+                if not callable(colors):
+                    colors = ss.colors
+            elif ss.colors is not None:
+                if colors is None:
+                    colors = ss.colors
+                else:
+                    colors = {**ss.colors, **colors}
+            result = stylize(text, style, info=info, formatter=self, colors=colors, **kwargs)
+        finally:
+            self.default_formats = my_default_format
+        return result
 
 
 def safefmt(fmt, *args, **kwargs):
@@ -406,9 +489,50 @@ def sectfmt(fmt, *args, **kwargs):
     return vsectfmt(fmt, args, kwargs, allow_empty=False)
 
 
-def stylize(text, style, *, info=None, formatter=None, colors=None, **kwargs):
+def stylize(text: str, style: Union[str, List[str]], *,
+            info:      Optional[Dict[str, Any]] = None,
+            formatter: Optional[string.Formatter] = None,
+            colors:    Optional[Dict[str, str]] = None,
+            **kwargs):
     """
-    Style formating.
+    Style formatting.
+
+    Parameters
+    ----------
+    text: str
+        A text to stylize.
+    style: str or list of str
+        Style(s) to apply on the text.
+    info: dict of str, str
+        Optional extra values in the `info` variable.
+    formatter: string.Formatter
+        String formatter, default is `SafeFormatter(safe=True, extended=True)`.
+    colors: dict of str, str
+        Optional color dictionary used in `[COLOR :<name>]`.
+    kwargs:
+        Extra variables for text formatting.
+
+    The `text` is formatted as safe f-string. `style` is a single format or list of formats
+    starting from outside one. Every Kodi label style could be used or special characters
+    (length of one or two) like "[]" or "*" or text format.
+
+    Colors could be in a format `COLOR :name` when the `name` is a key in `colors` dict.
+
+    Every f-string variable is taken from the `kwargs` arguments or `info` dict.
+
+    Exapmle
+    -------
+    >>> stylize('abc', 'B')
+    >>> # '[B]abc[/B]'
+
+    >>> stylize('abc', ['COLOR red', '«»', 'B'])
+    >>> # '[COLOR red]«[B]abc[/B]»[COLOR]'
+
+    >>> stylize('abc: {answer}', 'B', answer=42)
+    >>> # '[B]abc: 42[/B]'
+
+    >>> stylize('abc', '>>>{}<<<')
+    >>> # '>>>abc<<<'
     """
     if colors is None:
         def replace_color(m):
@@ -424,7 +548,7 @@ def stylize(text, style, *, info=None, formatter=None, colors=None, **kwargs):
 
     if style is not None:
         if formatter is None:
-            formatter = SafeFormatter(extended=True)
+            formatter = SafeFormatter(safe=True, extended=True)
         info = adict(info or ())
         if isinstance(style, str):
             style = (style, )
@@ -435,9 +559,10 @@ def stylize(text, style, *, info=None, formatter=None, colors=None, **kwargs):
                 text = f'[{s}]{text}[/{s.split(None, 1)[0]}]'
             elif s == '[]':  # brackets with zero-width spaces to avoid BB-code sequence
                 text = f'[\u200b{text}\u200b]'
-            elif len(s) <= 2:  # another brackets etc.
+            elif len(s) <= 2:  # another brackets etc. (one or two characters)
                 text = f'{s[0]}{text}{s[-1]}'
             else:
+                # reformat the text, the text is first `{0}` and `text` argument
                 text = formatter.format(s, text, text=text, info=info, **kwargs)
     try:
         text = RE_TITLE_COLOR.sub(replace_color, text)
@@ -475,6 +600,10 @@ def find_re(pattern: Union[str, regex], text: str, default: str = '', flags: int
 
 if __name__ == '__main__':
     print(SafeFormatter(extended=True).format('>{"To jest\tto\n"!e}<'))
+    print(SafeFormatter(default_formats={'0': '05d', 'a.b': '03d'}).format('{},{a.b}', 42, a=adict(b=44)))
+    f1 = SafeFormatter(default_formats={'a': '03d'})
+    print(f1.stylize('abc', '{a}/{text}/{b}/{c.d}', default_formats={'b': '04d', 'c.d': '02d'}, a=1, b=2, c={'d': 3}),
+          f1.default_formats)
     # debug
     import random
 
@@ -499,7 +628,10 @@ if __name__ == '__main__':
     s = 'To jest\tto\n'
     print(safefmt('>{!e}<', s))
     print(SafeFormatter(extended=True).format('>{"To jest\tto\n"!e}<'))
+    # SafeFormatter(extended=True).format('{a.b.c}', styles={'a': 'A'}, a={'b': {'c': 2}})
+    # SafeFormatter(extended=True).format('{a[b][c]}', styles={'a': 'A'}, a={'b': {'c': 2}})
     c = adict(x=11, y=22, z=[330, 331])
+    d = adict(a=42)
     styles = {
         'a': 'I',
         'b': ['B', '*'],
@@ -512,7 +644,13 @@ if __name__ == '__main__':
         'c[y]': 'ZY1',
         # 'c["y"]': 'ZY2',
         # "c['y']": 'ZY3',
+        'd': 'D',
     }
-    fmt = SafeFormatter(extended=True, styles=styles).format
-    print(fmt('{a}, {b}, ({c.x}, {c.y}, {c.z[0]}, {c.z[1]}, {c["x"]}, {c["y"]})',
-              a=1, b=2, c=c))
+    default_formats = {
+        'c.y': '03d',
+        'c[y]': '04d',
+        'c["y"]': '05d',
+    }
+    fmt = SafeFormatter(extended=True, styles=styles, default_formats=default_formats).format
+    print(fmt('{a}, {b}, ({c.x}, {c.y}, {c.z[0]}, {c.z[1]}, {c["x"]}, {c["y" ]}, {c.y}), ({d.a})',
+              a=1, b=2, c=c, d=d))

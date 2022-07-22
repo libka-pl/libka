@@ -20,7 +20,7 @@ from .routing import Router, subobject, DirEntry, Call
 from .menu import MenuMixin
 from .commands import Commands
 from .format import SafeFormatter, StylizeSettings
-from .tools import adict
+from .tools import adict, SingletonMetaclass
 import xbmc
 from xbmcaddon import Addon as XbmcAddon
 
@@ -61,10 +61,10 @@ class AddonMixin(BaseAddonMixin):
         self.tz_offset = now - datetime.utcfromtimestamp(now.timestamp())
         #: Names for paramteres to encode raw Python data, don't use it.
         self.encoded_keys = {'_'}
-        #: Addon ID (unique name)
-        self.id = addon_id
         #: XMBC (Kodi) Addon
-        self.xbmc_addon = XbmcAddon() if self.id is None else XbmcAddon(self.id)
+        self.xbmc_addon = XbmcAddon() if addon_id is None else XbmcAddon(addon_id)
+        #: Addon ID (unique name)
+        self.id = self.xbmc_addon.getAddonInfo('id')
         #: Addon settings.
         self.settings = Settings(addon=self, default=None)
         #: Default userdata
@@ -80,7 +80,7 @@ class AddonMixin(BaseAddonMixin):
         #: Resources
         self.resources = Resources(self)
         #: Default text formatter.
-        self.formatter = SafeFormatter(extended=True,
+        self.formatter = SafeFormatter(extended=True, styles=self.styles,
                                        stylize=StylizeSettings(colors=self.get_color))
 
     def __repr__(self):
@@ -248,7 +248,7 @@ class Plugin(Addon):
     """
 
 
-class LibkaTheAddon(AddonMixin):
+class LibkaTheAddon(AddonMixin, metaclass=SingletonMetaclass):
     """
     Libka addon itself.
     """

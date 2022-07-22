@@ -651,7 +651,7 @@ class AddonDirectory:
             item = xbmcgui.ListItem(title)
         if folder is None:
             folder = ifolder
-        log(f'FOLDER.prepare: {url!r}, item={item!r}, folder={folder!r} label={item.getLabel()!r}')
+        # log(f'FOLDER.prepare: {url!r}, item={item!r}, folder={folder!r} label={item.getLabel()!r}')
         return DirectoryItem(url, item, folder)
 
     def _add(self, item, endpoint=None, folder=None):
