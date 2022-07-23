@@ -730,7 +730,7 @@ class AddonDirectory:
             raise ValueError('Separator folder have to be folder-endpoint or None')
         else:
             endpoint, folder = folder, True
-        kwargs.setdefault('style', ['COLOR khaki', 'B', 'I'])
+        kwargs.setdefault('style', self.addon.styles.get('folder_list_separator', ['COLOR khaki', 'B', 'I']))
         kwargs.setdefault('thumb', self.addon.libka.media.image('transparent.png'))
         return self.item(title, endpoint, playable=False, folder=folder, **kwargs)
 

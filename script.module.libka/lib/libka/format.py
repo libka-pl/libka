@@ -6,6 +6,8 @@ import re
 import string
 from inspect import isclass, currentframe
 from dataclasses import dataclass
+from collections import namedtuple
+from collections.abc import Mapping
 from typing import (
     Optional, Union, Callable, Any, Type,
     List, Dict,
@@ -21,6 +23,10 @@ except ImportError:
     xbmc = None
 from .iter import neighbor_iter
 from .tools import adict
+
+
+class MISSING:
+    """Helper. Missing value."""
 
 
 #: Regex type
@@ -137,6 +143,10 @@ class StylizeSettings:
     kwargs: Dict[str, Any] = None
 
 
+#: Helper. Filed name info.
+FieldInfo = namedtuple('FieldInfo', 'field_name, args kwargs')
+
+
 class SafeFormatter(string.Formatter):
     r"""
     Safe string formatter.
@@ -186,7 +196,7 @@ class SafeFormatter(string.Formatter):
         #: Styles for values. Name of value is key in `styles` dict (kept by reference).
         self.styles: Dict[str, Union[List[str], str]] = {} if styles is None else styles
         #: Stack for filed names. Appended in `get_field`, popped in `format_field`.
-        self._field_name_stack: List[str] = []
+        self._field_name_stack: List[FieldInfo] = []
 
     def parse(self, format_string):
         if self.extended:
@@ -225,48 +235,74 @@ class SafeFormatter(string.Formatter):
     def convert_field(self, value, conversion):
         if self.escape and conversion == 'e':
             return str_escape(str(value))
+        # if conversion in '!?$':
+        #     conversion = ''
         return super().convert_field(value, conversion)
 
     def get_field(self, field_name, args, kwargs):
-        self._field_name_stack.append(field_name.strip())
+        self._field_name_stack.append(FieldInfo(field_name.strip(), args, kwargs))
         try:
             return super().get_field(field_name, args, kwargs)
-        except (KeyError, AttributeError, IndexError):
+        except (KeyError, AttributeError, IndexError, ValueError):
             if field_name.isdigit():
                 self._field_name_stack.pop()
                 raise  # missing positional argument
         if self.evaluator:
             try:
                 return self.evaluator.eval(field_name), field_name
-            except InvalidExpression:
+            except (InvalidExpression, SyntaxError):
                 pass
         return self.missing_field(field_name, args, kwargs)
 
     def missing_field(self, field_name, args, kwargs):
         return '{%s}' % field_name, field_name
 
+    _RE_FORMAT_FIELD_EXTRA = re.compile(r'(?P<format_spec>.*?)(?P<conds>![$?].*?)?(?:!!(?P<default>.*))?')
+    _RE_FORMAT_FIELD_SPLIT = re.compile(r'(![$?])')
+
     def format_field(self, value, format_spec):
-        field_name = self._field_name_stack.pop()
+        info: FieldInfo = self._field_name_stack.pop()
+        field_name: str = info.field_name
+        # orig_format_spec: str = format_spec
+        m = self._RE_FORMAT_FIELD_EXTRA.fullmatch(format_spec)
+        assert m
+        format_spec = m.group('format_spec')
+        default_val: Optional[str] = m.group('default')
+        spec_cond = style_cond = None
+        if m.group('conds'):
+            it = iter(self._RE_FORMAT_FIELD_SPLIT.split(m.group('conds'))[1:])
+            conds = dict(zip(it, it))
+            conds = {k: info.kwargs.get(v.strip()) for k, v in conds.items()}
+            spec_cond = conds.get('!?')
+            style_cond = conds.get('!$')
+
         if not format_spec:
             norm_field_name = re_quote_s.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
-            format_spec = self.default_formats.get(norm_field_name) or ''
-        input_spec = format_spec
-        format_spec, sep, val = format_spec.partition('!!')
+            format_spec = (self.default_formats.get(norm_field_name)
+                           # TODO:  add wildcards to default_formats (like in field_style)
+                           or self.default_formats.get(norm_field_name.rpartition('.')[0] + '.*') or '')
+            if isinstance(format_spec, Mapping):
+                format_spec = format_spec.get(spec_cond, format_spec.get(None, ''))
+            format_spec, dsep, val = format_spec.partition('!!')
+            if dsep and default_val is None:
+                default_val = val
+
+        input_spec: str = format_spec
         unknown = isinstance(value, str) and value[:1] == '{' and value[-1:] == '}'
-        if sep and unknown:
+        if default_val is not None and unknown:
             try:
-                if '::' in val:
-                    value, sep, format_spec = val.partition('::')
+                if '::' in default_val:
+                    value, sep, format_spec = default_val.partition('::')
                 elif format_spec[-1:] in 'bcdoxX':
-                    value = int(val)
+                    value = int(default_val)
                 elif format_spec[-1:] in 'eEfFgG':
-                    value = float(val)
+                    value = float(default_val)
                 else:
-                    value = val
+                    value = default_val
             except ValueError:
                 # format_spec = format_spec[:-1] + 's'
                 format_spec = 's'
-                value = val
+                value = default_val
         elif unknown and not self.safe:
             raise KeyError(value)
         try:
@@ -280,8 +316,11 @@ class SafeFormatter(string.Formatter):
                     norm_field_name = re_quote_s.sub(r'\g<q1>\g<q2>\g<q3>\g<q4>', field_name)
                     field_style = self.styles.get(norm_field_name)
                 if field_style is not None:
-                    result = self.stylize(result, field_style)
-                    break
+                    if isinstance(field_style, Mapping):
+                        field_style = field_style.get(style_cond, field_style.get(None, ''))
+                    if field_style is not None:
+                        result = self.stylize(result, field_style)
+                        break
                 if field_name == '*':
                     # print(f' - {field_name=!r}, m=')
                     break
@@ -456,7 +495,7 @@ def _vsectfmt(fmt, args, kwargs, *, formatter=None):
                  for sect, text in join(re_sectfmt_split.split(fmt)))
         parts = (ss[1] for ss in neighbor_iter(parts, False) if all(s is not None for s in ss))
         return ''.join(parts)
-    except (KeyError, AttributeError, ValueError):
+    except (KeyError, AttributeError, ValueError, ValueError):
         return None
 
 
@@ -654,3 +693,10 @@ if __name__ == '__main__':
     fmt = SafeFormatter(extended=True, styles=styles, default_formats=default_formats).format
     print(fmt('{a}, {b}, ({c.x}, {c.y}, {c.z[0]}, {c.z[1]}, {c["x"]}, {c["y" ]}, {c.y}), ({d.a})',
               a=1, b=2, c=c, d=d))
+    styles.update({
+        'e': {None: 'A', 'x': 'X', 'y': 'B'},
+    })
+    default_formats.update({
+        'e': {None: '05d', 'x': '+d', 'y': '+09d'},
+    })
+    print(fmt('{e},{e:!?o},{e:!$s},{e:!$s},{e:!?o!$s},{e:!?q!?o}.', e=42, o='x', s='y'))
