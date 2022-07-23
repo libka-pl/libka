@@ -270,7 +270,7 @@ class AddonDirectory:
 
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
-    def __init__(self, *, addon=None, view='addons', sort=None, type='video', image=None, fanart=None,
+    def __init__(self, *, addon=None, view='videos', sort=None, type='video', image=None, fanart=None,
                  format=None, style=None, isort=None, cache=False, update=False, offscreen=True, menu=None):
         if addon is None:
             addon = globals()['addon']
