@@ -8,6 +8,7 @@ Simple menu module to generate plugin root folders.
 from typing import (
     Optional, Union, Any, Callable,
     List, Dict, Set, Iterator,
+    NamedTuple,
     TYPE_CHECKING,
 )
 from .routing import PathArg, call, Call
@@ -184,6 +185,20 @@ class Menu:
         """
         return addon.menu_entry_item(kdir=kdir, entry=self, item=item, index_path=index_path)
 
+    @classmethod
+    def menu_info(cls, *, addon: 'MenuMixin', index_path: str):
+        index_path = [int(v) for v in index_path.split(',') if v]
+        menu = getattr(addon, 'MENU', None)
+        if menu is None:
+            log.warning(f'MENU is not defined, skipping {addon.__class__.__name__}.menu()')
+            return
+        extra_data = dict(menu._data)
+        for p in index_path:
+            menu = menu.items[p]
+            extra_data.update(menu._data)
+        extra_data = {k: v for k, v in extra_data.items() if k in addon.MENU_INHERIT_KYES}
+        return MenuEntryInfo(menu, index_path, extra_data)
+
 
 class MenuItems(Menu):
     """
@@ -206,6 +221,16 @@ class MenuItems(Menu):
         yield from addon.menu_entry_iter(entry=self)
 
 
+class MenuEntryInfo(NamedTuple):
+    """Helper. Pass namu info in `MenuMixin` methods."""
+    # Processed menu.
+    menu: Menu
+    # Menu path of indexes.
+    index_path: List[int]
+    # Extra data combined from root to `menu`.
+    extra_data: Dict[str, Any]
+
+
 class MenuMixin:
     """
     Menu mixin to use with Addon.
@@ -213,7 +238,7 @@ class MenuMixin:
 
     MENU_INHERIT_KYES = {'order_key', 'view'}
 
-    def _menu(self, kdir: 'AddonDirectory', index_path: str = '') -> None:
+    def _menu(self, kdir: 'AddonDirectory', index_path: str = '', *, info: Optional[MenuEntryInfo] = None) -> None:
         """
         Method called on menu support. Call it from `home()`.
 
@@ -224,21 +249,13 @@ class MenuMixin:
         pos : str
             Comma separated submenu index path.
         """
-        index_path = [int(v) for v in index_path.split(',') if v]
-        menu = getattr(self, 'MENU', None)
-        if menu is None:
-            log.warning(f'MENU is not defined, skipping {self.__class__.__name__}.menu()')
-            return
-        extra_data = dict(menu._data)
-        for p in index_path:
-            menu = menu.items[p]
-            extra_data.update(menu._data)
-        extra_data = {k: v for k, v in extra_data.items() if k in self.MENU_INHERIT_KYES}
-        index_path.append(-1)
-        for i, ent in enumerate(menu.items or ()):
-            index_path[-1] = i
-            data = {**extra_data, **ent._data}
-            ent._process_entry(addon=self, kdir=kdir, index_path=index_path, data=data)
+        if info is None:
+            info = Menu.menu_info(addon=self, index_path=index_path)
+        info.index_path.append(-1)
+        for i, ent in enumerate(info.menu.items or ()):
+            info.index_path[-1] = i
+            data = {**info.extra_data, **ent._data}
+            ent._process_entry(addon=self, kdir=kdir, index_path=info.index_path, data=data)
 
     def menu(self, index_path: PathArg[str] = '') -> None:
         """
@@ -251,8 +268,12 @@ class MenuMixin:
 
         Build folder for (sub)menu.
         """
-        with self.directory() as kdir:
-            self._menu(kdir, index_path)
+        info = Menu.menu_info(addon=self, index_path=index_path)
+        kwargs = {}
+        if info.menu.view is not None and info.menu.view != 'none':
+            kwargs['view'] = info.menu.view
+        with self.directory(**kwargs) as kdir:
+            self._menu(kdir, index_path, info=info)
 
     def menu_entry(self, *, kdir: 'AddonDirectory', entry: Menu, index_path: List[int]) -> bool:
         """
