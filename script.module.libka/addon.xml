@@ -15,9 +15,10 @@
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/libka-pl/libka/script.module.libka</source>
-		<news>v0.0.20
-- MultiStorage
-- Cache
+		<news>v0.0.21
+- formating
+- multi-storage
+- cache
 - refactor and fixes
 v0.0.17
 - Support for Python 3.7.
