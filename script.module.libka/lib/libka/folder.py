@@ -545,7 +545,7 @@ class AddonDirectory:
         if sort_key is None:
             sort_key = self._next_sort_key
         name = _name
-        log(f'NEW: {label=!r}, {endpoint=!r}, {name=!r}')
+        #log(f'NEW: {label=!r}, {endpoint=!r}, {name=!r}')
         if label is not None and endpoint is None:
             name, endpoint = label, name
         if title is None and info and info.get('title'):
@@ -554,7 +554,7 @@ class AddonDirectory:
             _title = title
         entry = self.router.mkentry(name, endpoint, title=_title, style=style)
         label = entry.label
-        log(f'new: {entry=!r}')
+        #log(f'new: {entry=!r}')
         if label is None:
             if entry.title is None:
                 label = str(entry.url)

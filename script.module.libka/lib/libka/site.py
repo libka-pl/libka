@@ -235,8 +235,8 @@ class SiteMixin:
             resp = URL3Response(resp)
         # --- default worker ---
         else:
-            log(f'libka.req({meth}, {url!r}, params={params!r}, data={data!r}, json={json!r},'
-                f' headers={headers!r}, {kwargs})')  # XXX
+            #log(f'libka.req({meth}, {url!r}, params={params!r}, data={data!r}, json={json!r},'
+                #f' headers={headers!r}, {kwargs})')  # XXX
             resp = self.sess.request(meth, str(url), params=params, data=data, json=json, headers=headers,
                                      verify=verify, **kwargs)
         return resp
