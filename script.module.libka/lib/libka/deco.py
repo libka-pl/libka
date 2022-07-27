@@ -45,7 +45,7 @@ def repeat_call(tries=3, delay=0, catch=Exception, *, on_fail=None):
                 try:
                     return method(*args, **kwargs)
                 except catch as exc:
-                    log.debug(f'{method}(*{args}, **{kwargs}): failed n={n}: {exc}')
+                    log.xdebug(f'{method}(*{args}, **{kwargs}): failed n={n}: {exc}')
             if on_fail is not None:
                 return do_call(on_fail, ref=CallDescr(method, args, kwargs))
 

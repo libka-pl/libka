@@ -497,7 +497,7 @@ class AddonDirectory:
         thumb : str
             Link to image thumb or relative path to addon image. Default is `image`.
         properties : dict[str, str]
-            Dictionary with xmbcgui.ListItem properties.
+            Dictionary with xbmcgui.ListItem properties.
         position : str
             Item spesial sort: "top" or "bottom"
         menu : list[(str, str | function)] | AddonContextMenu
@@ -506,9 +506,9 @@ class AddonDirectory:
         type : str
             Contnent type (video, music, pictures, game). Default is directory default (video).
         info : dict[str, str]
-            Labels info, see xmbcgui.ListItem.setInfo().
+            Labels info, see xbmcgui.ListItem.setInfo().
         art : dict[str, str]
-            Links to art images, see xmbcgui.ListItem.setArt().
+            Links to art images, see xbmcgui.ListItem.setArt().
         season : int
             Season number or None if not a season nor an episode.
         episode : int
@@ -545,7 +545,7 @@ class AddonDirectory:
         if sort_key is None:
             sort_key = self._next_sort_key
         name = _name
-        #log(f'NEW: {label=!r}, {endpoint=!r}, {name=!r}')
+        log.xdebug(f'NEW: {label=!r}, {endpoint=!r}, {name=!r}')
         if label is not None and endpoint is None:
             name, endpoint = label, name
         if title is None and info and info.get('title'):
@@ -554,7 +554,7 @@ class AddonDirectory:
             _title = title
         entry = self.router.mkentry(name, endpoint, title=_title, style=style)
         label = entry.label
-        #log(f'new: {entry=!r}')
+        log.xdebug(f'new: {entry=!r}')
         if label is None:
             if entry.title is None:
                 label = str(entry.url)
@@ -622,7 +622,6 @@ class AddonDirectory:
             label = safefmt(format, label, **info)
         label = self.addon.format_title(label, entry.style, n=len(self.item_list) + 1)
         item.setLabel(label)
-        # log.error('>>> EXIT...')  # DEBUG
         return item
 
     def add(self, item, endpoint=None, folder=None):

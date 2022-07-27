@@ -21,8 +21,8 @@ from .format import stylize
 from .tools import adict
 if TYPE_CHECKING:
     from .addon import Addon
-    from xbmcaddon import Settings as XmbcSettings
-    from xmbcaddon import Addon as XbmcAddon
+    from xbmcaddon import Settings as XbmcSettings
+    from xbmcaddon import Addon as XbmcAddon
 
 
 #: Split regex for settings style value list.
@@ -39,7 +39,7 @@ class MISSING:
 
 class Settings:
     """
-    Proxy to Kodi (XMBC) settings.
+    Proxy to Kodi (XBMC) settings.
 
     Parameters
     ----------
@@ -88,17 +88,17 @@ class Settings:
 
     def __init__(self, *, addon: 'Addon' = None, default: Any = MISSING):
         if addon is None:
-            from xmbcaddon import Addon as XbmcAddon  # noqa F811
+            from xbmcaddon import Addon as XbmcAddon  # noqa F811
             self._xbmc_addon: XbmcAddon = XbmcAddon()
         else:
             self._xbmc_addon: 'XbmcAddon' = addon.xbmc_addon
         self._addon: 'Addon' = addon
         try:
             # since Kodi 20
-            self._xbmc: 'XmbcSettings' = self._xbmc_addon.getSettings()
+            self._xbmc: 'XbmcSettings' = self._xbmc_addon.getSettings()
         except AttributeError:
-            from .kodi import Settings as XmbcSettings  # noqa F811
-            self._xbmc: 'XmbcSettings' = XmbcSettings(xbmc_addon=self._xbmc_addon)
+            from .kodi import Settings as XbmcSettings  # noqa F811
+            self._xbmc: 'XbmcSettings' = XbmcSettings(xbmc_addon=self._xbmc_addon)
         self._data: Dict[str, Any] = {}
         self._default = default
 
@@ -124,7 +124,7 @@ class Settings:
         if type == 'String' or type.endswith('List'):
             type = ''
         getter = getattr(self._xbmc_addon, f'getSetting{type}')
-        log.debug(f'_get({key!r}, {default!r}, {type!r}): getter={getter!r}')
+        log.xdebug(f'_get({key!r}, {default!r}, {type!r}): getter={getter!r}')
         try:
             value = getter(key)
         except Exception:

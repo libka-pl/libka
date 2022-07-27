@@ -4,7 +4,7 @@ from .routing import Call
 
 class Commands:
     """
-    Simple xmbc command wraper with method resolver (mkurl).
+    Simple xbmc command wraper with method resolver (mkurl).
     """
 
     def __init__(self, *, addon, mkurl=None):

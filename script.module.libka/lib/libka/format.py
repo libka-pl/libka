@@ -217,7 +217,7 @@ class SafeFormatter(string.Formatter):
         except Exception as exc:
             if self.safe:
                 if xbmc:
-                    xbmc.log(f'Formatter {format_string!r} failed: {exc!r}', xbmc.LOGERROR)
+                    xbmc.log(f'Formatter {format_string!r} failed: {exc!r}', xbmc.LOGINFO)
             else:
                 raise
 
@@ -576,7 +576,7 @@ def stylize(text: str, style: Union[str, List[str]], *,
     if colors is None:
         def replace_color(m):
             if xbmc:
-                xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGERROR)
+                xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGWARNING)
             return '[COLOR gray]'
     elif callable(colors):
         def replace_color(m):
@@ -607,7 +607,7 @@ def stylize(text: str, style: Union[str, List[str]], *,
         text = RE_TITLE_COLOR.sub(replace_color, text)
     except TypeError:
         if xbmc:
-            xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGERROR)
+            xbmc.log(f'Incorrect label/title type {type(text)}', xbmc.LOGWARNING)
         raise
     return text
 

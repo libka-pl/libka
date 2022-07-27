@@ -32,14 +32,19 @@ def log_debug(*msg, sep=' ', title=None):
     log(*msg, level=xbmc.LOGDEBUG)
 
 
+def log_xdebug(*msg, sep=' ', title=None):
+    pass
+
+
 log.error = log_error
 log.warning = log_warning
 log.info = log_info
 log.debug = log_debug
+log.xdebug = log_xdebug
 
 
 def flog(msg, level=None, depth=0):
-    """f-string folrmatted log."""
+    """f-string formatted log."""
     if isinstance(msg, bytes):
         msg = msg.decode('utf-8')
     msg = vfstr(msg, (), {}, depth=depth+1)
@@ -62,7 +67,12 @@ def flog_debug(msg):
     flog(msg, level=xbmc.LOGDEBUG, depth=1)
 
 
+def flog_xdebug(msg):
+    pass
+
+
 flog.error = flog_error
 flog.warning = flog_warning
 flog.info = flog_info
 flog.debug = flog_debug
+flog.xdebug = flog_xdebug

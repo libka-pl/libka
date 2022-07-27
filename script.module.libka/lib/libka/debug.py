@@ -1,3 +1,6 @@
+"""
+External debuging for run addons outside the Kodi.
+"""
 
 from functools import wraps
 from typing import (

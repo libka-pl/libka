@@ -61,7 +61,7 @@ class AddonMixin(BaseAddonMixin):
         self.tz_offset = now - datetime.utcfromtimestamp(now.timestamp())
         #: Names for paramteres to encode raw Python data, don't use it.
         self.encoded_keys = {'_'}
-        #: XMBC (Kodi) Addon
+        #: XBMC (Kodi) Addon
         self.xbmc_addon = XbmcAddon() if addon_id is None else XbmcAddon(addon_id)
         #: Addon ID (unique name)
         self.id = self.xbmc_addon.getAddonInfo('id')
@@ -240,6 +240,11 @@ class Addon(MenuMixin, AddonMixin):
             kd.close(True)
         finally:
             pass
+
+    def play_failed(self):
+        """Notice, that play failed."""
+        item = xbmcgui.ListItem()
+        xbmcplugin.setResolvedUrl(self.handle, False, listitem=item)
 
 
 class Plugin(Addon):

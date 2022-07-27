@@ -155,7 +155,7 @@ class Storage:
             except IOError:
                 pass
         else:
-            log.debug(f'{tmp_path!r} -> {path!r}')
+            log.xdebug(f'{tmp_path!r} -> {path!r}')
             try:
                 move(tmp_path, path)
             except IOError as exc:
