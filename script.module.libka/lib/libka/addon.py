@@ -1,6 +1,4 @@
 import sys
-import re
-from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import datetime
 from typing import (

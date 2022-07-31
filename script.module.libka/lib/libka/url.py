@@ -27,6 +27,7 @@ URL('https://host.com/api/%s/%03d' % ('foo', 42))
 ```
 """
 
+from typing import Optional, Union
 from sys import getdefaultencoding
 from inspect import isfunction, isdatadescriptor
 from urllib.parse import urljoin
@@ -170,7 +171,42 @@ class URL(str, metaclass=CloneURL):
         return yarl.URL(self)
 
 
+def append_url_path(url: URL, name: Union[URL, str], *, safe: Optional[str] = ''):
+    """Appenf path to url."""
+    if isinstance(name, URL):
+        pass
+    elif isinstance(name, yarl.URL):
+        name = str(name)
+    elif safe:
+        quoter_safe = url._PATH_QUOTER._safe
+        url._PATH_QUOTER._safe += safe
+        name = url._PATH_QUOTER(name)
+        url._PATH_QUOTER._safe = quoter_safe
+    else:
+        name = url._PATH_QUOTER(name)
+    if name.startswith("/"):
+        raise ValueError(
+            f"Appending path {name!r} starting from slash is forbidden"
+        )
+    path = url._val.path
+    if path == "/":
+        new_path = "/" + name
+    elif not path and not url.is_absolute():
+        new_path = name
+    else:
+        parts = path.rstrip("/").split("/")
+        parts.append(name)
+        new_path = "/".join(parts)
+    if url.is_absolute():
+        new_path = url._normalize_path(new_path)
+    return URL(url._val._replace(path=new_path, query="", fragment=""), encoded=True)
+
+
 if __name__ == '__main__':
+    print(append_url_path(URL('http://a.b/c/d?e=33'), 'x/y'))
+    print(append_url_path(URL('http://a.b/c/d?e=33'), 'x/{}'))
+    print(append_url_path(URL('http://a.b/c/d?e=33'), 'x/{}', safe='{}'))
+    exit()
     u = URL('http://a.b/c/d?e=33')
     print(f'u: {u} {u!r}')
     print(dir(u))

@@ -24,7 +24,7 @@ from .site import Site, SiteMixin  # noqa E402
 from .kodi import K19, K20         # noqa E402
 from .routing import (             # noqa E402
     call, entry, subobject,
-    PathArg, RawArg,
+    PathArg, RawArg, SafeQuoteStr,
 )
 from .lang import get_label_getter  # noqa E402
 from .search import search          # noqa E402

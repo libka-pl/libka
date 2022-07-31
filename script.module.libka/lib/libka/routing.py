@@ -88,6 +88,21 @@ class RawArg(ArgMixin, Generic[T]):
     """Raw argument (pickle+gzip+base64) pseudo-type for annotations."""
 
 
+class SafeQuoteStr(str):
+    """
+    Path in `Router.mkurl()` with safe quote.
+
+    Default safe characters are: `{}`.
+
+    This wrapper works only in `PathArg` paramerters.
+    """
+
+    def __new__(cls, path, *, safe='{}'):
+        obj = str.__new__(cls, path)
+        obj.safe = safe
+        return obj
+
+
 def call(method, *args, **kwargs):
     """Addon action with arguments. Syntax suger. """
     return Call(method, args, kwargs)
@@ -271,12 +286,22 @@ class Router:
         for p in sig.parameters.values():
             ht = hints.get(p.name)
             if PathArg.subtype(ht) is not None:
-                path_items.append(params.pop(p.name))
+                value = params.pop(p.name)
+                if isinstance(value, SafeQuoteStr):
+                    # Hack, allow extra characters in path (it breaks RFC).
+                    path_safe = URL._PATH_REQUOTER._safe
+                    URL._PATH_REQUOTER._safe += value.safe
+                    value = URL(value)
+                    URL._PATH_REQUOTER._safe = path_safe
+                path_items.append(value)
                 if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
                     params.pop(count, None)
                     count += 1
             elif RawArg.subtype(ht) is not None:
                 raw.setdefault('_', {})[p.name] = params.pop(p.name)
+                if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
+                    params.pop(count, None)
+                    count += 1
 
     def mkurl(self, endpoint: Union[str, Callable], *args, **kwargs) -> str:
         """
@@ -303,7 +328,7 @@ class Router:
                     return str(params.pop(name))
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
 
-        def find_path(endpoint):
+        def find_path(endpoint) -> List[Union[str, URL]]:
             """Find enpoind entry path."""
             names, func = [], endpoint
             if ismethod(endpoint):
@@ -326,8 +351,12 @@ class Router:
                 if not names:
                     raise ValueError(f'Object {endpoint!r} not found')
             self._make_path_args(func, names, params, raw)
-            path = '/'.join(map(str, names))
-            return f'/{path}'
+            for i, name in enumerate(names):
+                if isinstance(name, str) and '<' in name:
+                    names[i] = self._RE_PATH_ARG.sub(fill_path_args, name)
+            return names
+            # path = '/'.join(map(str, names))
+            # return f'/{path}'
 
         path = arguments = None
         raw = {}
@@ -360,7 +389,7 @@ class Router:
         if path is None:
             path = f'/{endpoint}'
         # apply path args (from pattern)
-        if '<' in path:
+        if isinstance(path, str) and '<' in path:
             path = self._RE_PATH_ARG.sub(fill_path_args, path)
         # reduce paramters: remove positional if keywoard exists, remove defaults arguments
         if arguments:
@@ -640,7 +669,7 @@ class subobject:
             self.name = method.__name__
 
     def __call__(self, *args, **kwargs):
-        print('CCC', args, kwargs)
+        log.debug('subobject call', args, kwargs)
 
     def __get__(self, instance, owner=None):
         if instance is None:

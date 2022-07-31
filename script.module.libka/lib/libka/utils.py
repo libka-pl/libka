@@ -20,7 +20,7 @@ from .tools import (
     encode_data, decode_data,
     item_iter,
 )
-from .url import URL
+from .url import URL, append_url_path
 from multidict import MultiDict, MultiDictProxy
 
 #: Regex type
@@ -119,7 +119,16 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
     if path is not None:
         if isinstance(path, Path):
             path = str(path)
-        url = url.join(URL(path))
+        if isinstance(path, str):
+            url = url.join(URL(path))
+        else:
+            # Sequence of path parts.
+            # The trick is a part could avoid quoitinf if is URL already.
+            url = url.join(URL('/'))
+            for part in path:
+                if not isinstance(part, (URL, str)):
+                    part = str(part)
+                url = append_url_path(url, part)
 
     return url % prepare_query_params(params=params, raw=raw)
 

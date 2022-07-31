@@ -160,9 +160,8 @@ class Menu:
                 title: str = self.title
                 if title is None:
                     entry = getattr(method, '_libka_endpoint', None)
-                    if entry is not None:
-                        if entry.title is not None:
-                            title = entry.title
+                    if entry is not None and entry.title is not None:
+                        title = entry.title
                 kdir.menu(title, target)
             elif self.items:
                 kdir.menu(self.title, call(addon.menu, ','.join(map(str, index_path))))
