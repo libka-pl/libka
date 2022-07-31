@@ -10,7 +10,7 @@ import xbmcgui
 import xbmcplugin
 
 
-version_info_type = namedtuple('version_info_type', 'major micro minor')
+version_info_type = namedtuple('version_info_type', 'major minor build')
 version_info_type.__new__.__defaults__ = 2*(0,)
 
 
@@ -24,11 +24,12 @@ def get_kodi_version_info():
 
 version_info = get_kodi_version_info()
 
-version = version_info.major
+version = version_info.major + (version_info.minor >= 90)
 
-K18 = (version == 18)
-K19 = (version == 19)
-K20 = (version == 20)
+K18 = ((17, 9, 910) <= version_info < (18, 9, 701))
+K19 = ((18, 9, 701) <= version_info < (19, 90))
+K20 = ((19, 90) <= version_info < (20, 90))
+K21 = ((20, 90) <= version_info < (21, 90))
 
 
 if version < 20:
