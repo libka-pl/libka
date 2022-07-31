@@ -2,10 +2,31 @@
 Simple date & time module.
 """
 
-from datetime import datetime, date as dt_date, time as dt_time, timedelta
+import datetime as dt
+from datetime import date as dt_date, time as dt_time, timedelta
 from numbers import Integral
 from collections.abc import Sequence
 from typing import Optional, Union, List
+import time
+from functools import wraps
+
+
+# Fix for python reinitialize bug.
+# See: https://bugs.python.org/issue27400
+class datetime(dt.datetime):
+
+    @classmethod
+    @wraps(dt.datetime.strptime)
+    def strptime(cls, date_string, format):
+        try:
+            return super().strptime(date_string, format)
+        except TypeError:
+            return datetime(*time.strptime(date_string, format)[:6])
+
+
+# Override datetime.datetime class.
+datetime.__doc__ = dt.datetime.__doc__
+dt.datetime = datetime
 
 
 def now() -> datetime:
