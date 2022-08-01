@@ -4,12 +4,13 @@
 
 import sys
 from .debug import xbmc_debug
-from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, search
+from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, SafeQuoteStr, search, entry
 # from . import Site
 from .lang import text
 from .logs import log
 from . import path as pathmod
 from .cache import cached
+from typing import Optional
 
 
 xbmc_debug(fake=True, console=True, items=True)
@@ -61,6 +62,16 @@ class MyPlugin(SimplePlugin):
 
     def __init__(self):
         super().__init__()
+        print(self.mkurl(call(self.get_search_tabs, [1, 2, 3])))
+        print(self.mkurl(call(self.baz, '{}')))
+        print(self.mkurl(call(self.baz, SafeQuoteStr('{}'))))
+        print(self.mkurl(call(self.baz, a=SafeQuoteStr('{}', safe='{'), b=SafeQuoteStr('{}', safe='}'))))
+        print(self.mkurl(call(self.bam, SafeQuoteStr('{}', safe='{'), SafeQuoteStr('{}', safe='}'))))
+        print(self.mkurl(call(self.bam, a=SafeQuoteStr('{}', safe='{'), b=SafeQuoteStr('{}', safe='}'))))
+        print(self.mkurl(self.home))
+        print(self.mkurl(call(self.home)))
+        print(self.mkurl(call(self.get_search_tabs, id_list=[1, 2, 3])))
+        print(self.mkurl(call(self.get_search_tabs, [1, 2, 3])))
         # self.s1 = Search(addon=self, asdasdasdaasdasdasdasd)
         # self.s2 = Search(addon=self)
         # self.search.set_option(...)  # nazwa: wartości  jakość: auto 720p 1080 UHD
@@ -121,6 +132,13 @@ class MyPlugin(SimplePlugin):
 
     def bar(self, a: PathArg[int]):
         print(f'bar(a={a!r})')
+
+    def baz(self, a: PathArg, b: Optional[PathArg] = None):
+        print(f'baz(a={a!r}, b={b!r})')
+
+    @entry(path='/bamm/{}/<a>/<b>')
+    def bam(self, a, b):
+        print(f'bam(a={a!r}, b={b!r})')
 
     @search.folder
     def find_best_movies(self, name, opt):

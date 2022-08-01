@@ -126,9 +126,10 @@ def encode_url(url: Union[URL, str], path: Optional[Union[str, Path]] = None,
             # The trick is a part could avoid quoitinf if is URL already.
             url = url.join(URL('/'))
             for part in path:
-                if not isinstance(part, (URL, str)):
-                    part = str(part)
-                url = append_url_path(url, part)
+                if part:
+                    if not isinstance(part, (URL, str)):
+                        part = str(part)
+                    url = append_url_path(url, part)
 
     return url % prepare_query_params(params=params, raw=raw)
 

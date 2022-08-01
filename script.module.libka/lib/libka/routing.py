@@ -102,6 +102,13 @@ class SafeQuoteStr(str):
         obj.safe = safe
         return obj
 
+    def as_url(self):
+        path_safe = URL._PATH_REQUOTER._safe
+        URL._PATH_REQUOTER._safe += self.safe
+        value = URL(self)
+        URL._PATH_REQUOTER._safe = path_safe
+        return value
+
 
 def call(method, *args, **kwargs):
     """Addon action with arguments. Syntax suger. """
@@ -289,10 +296,7 @@ class Router:
                 value = params.pop(p.name)
                 if isinstance(value, SafeQuoteStr):
                     # Hack, allow extra characters in path (it breaks RFC).
-                    path_safe = URL._PATH_REQUOTER._safe
-                    URL._PATH_REQUOTER._safe += value.safe
-                    value = URL(value)
-                    URL._PATH_REQUOTER._safe = path_safe
+                    value = value.as_url()
                 path_items.append(value)
                 if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
                     params.pop(count, None)
@@ -307,9 +311,8 @@ class Router:
         """
         Create plugin URL to given name/method with arguments.
         """
-        def fill_path_args(r):
+        def fill_path_args(name: str, type: Optional[str] = None) -> Union[str, URL]:
             """Substitute "<[type:]param>"."""
-            name = r['name']
             if name == 'self':
                 if ismethod(endpoint):
                     return '.'.join(self._find_object_path(endpoint.__self__))
@@ -325,8 +328,15 @@ class Router:
                 if name in params:
                     if arguments:
                         params.pop(arguments.indexes.get(name), None)
-                    return str(params.pop(name))
+                    value = params.pop(name)
+                    if isinstance(value, SafeQuoteStr):
+                        return value.as_url()
+                    return str(value)
             raise TypeError(f'Unkown argument {name!r} in path {path} in {endpoint.__name__}() ({endpoint})')
+
+        def replace_path_args(match):
+            """Substitute "<[type:]param>"."""
+            return str(fill_path_args(match['name'], match['type']))
 
         def find_path(endpoint) -> List[Union[str, URL]]:
             """Find enpoind entry path."""
@@ -351,12 +361,8 @@ class Router:
                 if not names:
                     raise ValueError(f'Object {endpoint!r} not found')
             self._make_path_args(func, names, params, raw)
-            for i, name in enumerate(names):
-                if isinstance(name, str) and '<' in name:
-                    names[i] = self._RE_PATH_ARG.sub(fill_path_args, name)
+            # Return list of path parts.
             return names
-            # path = '/'.join(map(str, names))
-            # return f'/{path}'
 
         path = arguments = None
         raw = {}
@@ -389,8 +395,13 @@ class Router:
         if path is None:
             path = f'/{endpoint}'
         # apply path args (from pattern)
-        if isinstance(path, str) and '<' in path:
-            path = self._RE_PATH_ARG.sub(fill_path_args, path)
+        if isinstance(path, str):
+            path = path.split('/')
+        for i, part in enumerate(path):
+            if isinstance(part, str) and '<' in part:
+                match = self._RE_PATH_ARG.fullmatch(part)
+                if match:
+                    path[i] = fill_path_args(match['name'], match['type'])
         # reduce paramters: remove positional if keywoard exists, remove defaults arguments
         if arguments:
             npos = len(arguments.positional)
