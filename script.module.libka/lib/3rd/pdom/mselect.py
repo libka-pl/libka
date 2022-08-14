@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, unicode_literals, print_function
 
 from collections import defaultdict
+from itertools import zip_longest
 
 from .base import _make_html_list
 from .base import base_str, PY2
@@ -65,7 +66,7 @@ def _select_desc(res, html, selectors_desc, sync=False, flat=True):
                         # res2 = []
                         # _select_desc(res2, subhtml, sel, sync=True, flat=flat)
                         res2 = [_select_desc([], sub2html, sel, sync=True, flat=flat) for sub2html in subhtml]
-                        res2 = SetSelPartData(zip(*res2))  # nth, res2
+                        res2 = SetSelPartData(zip_longest(*res2, fillvalue=Result.RemoveItem))  # nth, res2
                         # print('mix!!! SH', subhtml)
                         # print('mix!!! SR', res2)
                         used[selhash] = res2
