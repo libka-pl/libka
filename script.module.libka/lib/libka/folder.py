@@ -2,6 +2,7 @@ import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from contextlib import contextmanager
+from inspect import signature
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
@@ -267,6 +268,10 @@ class AddonDirectory:
 
     See: xbmcgui.ListItem, xbmcplugin.addDirectoryItem, xbmcplugin.endOfDirectory.
     """
+
+    #: Keywors paramters for `AddonDirectory` item. Will be updated from `AddonDirectory.new()` signature.
+    ITEM_KEYS = ('descr', 'label2', 'info', 'art', 'image', 'fanart', 'thumb', 'menu',
+                 'style', 'format', 'menu', 'type')
 
     _RE_ISORT_SPLIT = re.compile(r'[,;]')
 
@@ -773,6 +778,11 @@ class AddonDirectory:
         finally:
             self._next_sort_key = next_sort_key
             pass
+
+
+# Update AddonDirectory.ITEM_KEYS form `AddonDirectory.new() signature`
+AddonDirectory.ITEM_KEYS = tuple(p.name for p in signature(AddonDirectory.new).parameters.values()
+                                 if p.kind == p.KEYWORD_ONLY)
 
 
 class AddonDirectoryBlock:

@@ -5,7 +5,7 @@ See `ThreadPool` and `concurrent()`.
 """
 
 import os
-from threading import Thread
+from threading import Thread, Event
 from inspect import ismethod, currentframe
 from collections.abc import Mapping
 from itertools import chain
@@ -670,3 +670,100 @@ def thread_it_zipped(function, delay: int, *args: List[List[Any]], **kwargs: Dic
             time.sleep(delay)
         th.start()
     return [th.join() for th in threads]
+
+
+def cyclic_call(interval: float, function: Callable, *args, **kwargs) -> Thread:
+    """
+    Calling the `function()` in every `interval`.
+
+    Parameters
+    ----------
+    interval : int
+        The interval to wait before every call.
+    function : callable
+        The function to call in every `interval`.
+    args
+        The function's positional parameters.
+    kwargs
+        The function's keyword parameters.
+
+    Returns
+    -------
+        Created thread instance.
+
+    >>> def foo(a, b, c=0):
+    >>>     print(f'foo: a={a}, b={b}, c={c}')
+    >>>
+    >>> cyclic_call(10, foo, 1, 2, c=3)
+    >>>
+    >>> # ... waiting 10 seconds
+    >>> # foo: a=1, b=2, c=3
+    >>> # ... waiting 10 seconds
+    >>> # foo: a=1, b=2, c=3
+    >>> # ...
+    """
+
+    def calling():
+        while True:
+            time.sleep(interval)
+            function(*args, **kwargs)
+
+    thread = Thread(target=calling)
+    thread.start()
+    return thread
+
+
+class Timer(Thread):
+    """
+    Multishot Python `threading.Thread`. Calls a `function()` in every `interval`.
+
+    Parameters
+    ----------
+    interval : int
+        The interval to wait before every call.
+    function : callable
+        The function to call in every `interval`.
+    args : tuple
+        The function's positional parameters.
+    kwargs: dict
+        The function's keyword parameters.
+
+    >>> def foo(a, b, c=0):
+    >>>     print(f'foo: a={a}, b={b}, c={c}')
+    >>>
+    >>> timer = Timer(10, foo, (1, 2), {'c': 3})
+    >>> timer.start()
+    >>>
+    >>> # ... waiting 10 seconds
+    >>> # foo: a=1, b=2, c=3
+    >>> # ... waiting 10 seconds
+    >>> # foo: a=1, b=2, c=3
+    >>>
+    >>> timer.cancel()
+
+    Note
+    ----
+    Code is taken from Python 3.10. The `oneshot` is added.
+    """
+
+    def __init__(self, interval: float, function: Callable, args: Tuple[Any] = None, kwargs: Dict[str, Any] = None,
+                 *, oneshot: bool = False):
+        Thread.__init__(self)
+        self.interval = interval
+        self.function = function
+        self.args = args if args is not None else []
+        self.kwargs = kwargs if kwargs is not None else {}
+        self.oneshot = oneshot
+        self.finished = Event()
+
+    def cancel(self):
+        """Stop the timer if it hasn't finished yet."""
+        self.finished.set()
+
+    def run(self):
+        while not self.finished.is_set():
+            self.finished.wait(self.interval)
+            if not self.finished.is_set():
+                self.function(*self.args, **self.kwargs)
+            if self.oneshot:
+                self.finished.set()

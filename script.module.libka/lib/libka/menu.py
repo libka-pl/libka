@@ -12,7 +12,7 @@ from typing import (
     TYPE_CHECKING,
 )
 from .routing import PathArg, call, Call
-from .types import regex
+from .types import regex, KwArgs
 from .logs import log
 from copy import copy
 from fnmatch import fnmatch
@@ -66,6 +66,10 @@ class Menu:
     #: Name of parameter used to sorting int the same order level.
     #: It's taken from multi-entry item. The item index is used if `SORT_KEY` is None.
     SORT_KEY: str = None
+
+    #: Keys for AddonDirectory.new() keyword arguments.
+    MENU_ITEMS_KEYS = ('descr', 'label2', 'info', 'art', 'image', 'fanart', 'thumb', 'menu',
+                       'style', 'format', 'menu', 'type')
 
     def __init__(self, **kwargs):
         missing: Set[str] = self.OBLIGATORY - kwargs.keys()
@@ -162,9 +166,9 @@ class Menu:
                     entry = getattr(method, '_libka_endpoint', None)
                     if entry is not None and entry.title is not None:
                         title = entry.title
-                kdir.menu(title, target)
+                kdir.menu(title, target, **self.kwargs)
             elif self.items:
-                kdir.menu(self.title, call(addon.menu, ','.join(map(str, index_path))))
+                kdir.menu(self.title, call(addon.menu, ','.join(map(str, index_path))), **self.kwargs)
             else:
                 process_entry = self._data.get('process_entry', self.process_entry)
                 return bool(process_entry(addon=addon, kdir=kdir, index_path=index_path))
@@ -195,8 +199,16 @@ class Menu:
         for p in index_path:
             menu = menu.items[p]
             extra_data.update(menu._data)
-        extra_data = {k: v for k, v in extra_data.items() if k in addon.MENU_INHERIT_KYES}
+        extra_data = {k: v for k, v in extra_data.items() if k in addon.MENU_INHERIT_KEYS}
         return MenuEntryInfo(menu, index_path, extra_data)
+
+    @property
+    def kwargs(self) -> KwArgs:
+        data = self._updated_data or {}
+        return {key: value
+                for key in self.MENU_ITEMS_KEYS
+                for value in (data.get(key),)
+                if value is not None and value != 'none'}
 
 
 class MenuItems(Menu):
@@ -205,6 +217,11 @@ class MenuItems(Menu):
 
     See: `Menu`.
     """
+
+    #: Keys for AddonDirectory.new() keyword arguments.
+    MENU_ITEMS_KEYS = ('descr', 'label2', 'info', 'art', 'image', 'fanart', 'thumb', 'menu',
+                       'style', 'format', 'menu', 'type',
+                       'sort_key')
 
     def entry_iter(self, *, addon: 'MenuMixin') -> Iterator[Item]:
         """
@@ -235,9 +252,11 @@ class MenuMixin:
     Menu mixin to use with Addon.
     """
 
-    MENU_INHERIT_KYES = {'order_key', 'view'}
+    MENU_INHERIT_KEYS = {'order_key', 'view', 'type', 'art', 'image', 'fanart'}
+    MENU_FOLDER_KEYS = {'view', 'type', 'image', 'fanart', 'style', 'format'}
 
-    def _menu(self, kdir: 'AddonDirectory', index_path: str = '', *, info: Optional[MenuEntryInfo] = None) -> None:
+    def _menu(self, kdir: 'AddonDirectory', index_path: str = '', *,
+              info: Optional[MenuEntryInfo] = None) -> None:
         """
         Method called on menu support. Call it from `home()`.
 
@@ -268,9 +287,11 @@ class MenuMixin:
         Build folder for (sub)menu.
         """
         info = Menu.menu_info(addon=self, index_path=index_path)
-        kwargs = {}
-        if info.menu.view is not None and info.menu.view != 'none':
-            kwargs['view'] = info.menu.view
+        kwargs: KwArgs = {}
+        for key in self.MENU_FOLDER_KEYS:
+            value = getattr(info.menu, key, None)
+            if value is not None and value != 'none':
+                kwargs[key] = value
         with self.directory(**kwargs) as kdir:
             self._menu(kdir, index_path, info=info)
 

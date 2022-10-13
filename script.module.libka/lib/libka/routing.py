@@ -49,7 +49,7 @@ Call = namedtuple('Call', 'method args kwargs raw', defaults=(None,))
 Call.addon = None
 Call.__format__ = call_format
 
-EndpointEntry = namedtuple('EndpointEntry', 'path label style title object')
+EndpointEntry = namedtuple('EndpointEntry', 'path label style title object kwargs', defaults=(None,))
 
 RouteEntry = namedtuple('RouteEntry', 'method entry regex types')
 
