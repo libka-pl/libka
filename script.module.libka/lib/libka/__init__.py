@@ -6,6 +6,7 @@ Simple Kodi addon framework to make all dirty work.
 
 import sys
 import os.path
+from kover import autoinstall  # noqa: F401
 
 __version__ = '0.0.23'
 

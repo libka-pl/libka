@@ -135,6 +135,7 @@ dmypy.json
 
 # Temp files
 *~
+*.bak
 /tmp/
 
 # Outout & build folders

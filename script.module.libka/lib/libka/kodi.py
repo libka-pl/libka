@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import namedtuple
 import xbmc
 # traversal modules (ready to monkey-pathing)
 import xbmcvfs
@@ -8,28 +7,7 @@ import xbmcaddon
 import xbmcdrm
 import xbmcgui
 import xbmcplugin
-
-
-version_info_type = namedtuple('version_info_type', 'major minor build')
-version_info_type.__new__.__defaults__ = 2*(0,)
-
-
-def get_kodi_version_info():
-    """Return major kodi version as int."""
-    default = '19'
-    ver = xbmc.getInfoLabel('System.BuildVersion') or default
-    ver = ver.partition(' ')[0].split('.', 3)[:3]
-    return version_info_type(*(int(v.partition('-')[0]) for v in ver))
-
-
-version_info = get_kodi_version_info()
-
-version = version_info.major + (version_info.minor >= 90)
-
-K18 = ((17, 9, 910) <= version_info < (18, 9, 701))
-K19 = ((18, 9, 701) <= version_info < (19, 90))
-K20 = ((19, 90) <= version_info < (20, 90))
-K21 = ((20, 90) <= version_info < (21, 90))
+from kover import version_info, version, K18, K19, K20, K21  # noqa: F401
 
 
 if version < 20:

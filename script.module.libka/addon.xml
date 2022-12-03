@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="script.module.libka" name="Libka Library Module" version="0.0.25" provider-name="libka team">
+<addon id="script.module.libka" name="Libka Library Module" version="0.0.30" provider-name="libka team">
 	<requires>
 		<import addon="xbmc.python" version="3.0.0" />
+		<import addon="script.module.kover" />
 		<import addon="script.module.requests" />
 		<import addon="script.module.urllib3" />
 		<import addon="script.skin.helper.colorpicker" />
@@ -15,7 +16,11 @@
 		<platform>all</platform>
 		<license>MIT</license>
 		<source>https://github.com/libka-pl/libka/script.module.libka</source>
-		<news>v0.0.25
+		<news>v0.0.30
+- better menu
+- threads
+- kover
+v0.0.25
 - formating
 - multi-storage
 - cache
