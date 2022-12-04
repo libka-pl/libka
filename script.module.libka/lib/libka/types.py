@@ -1,5 +1,5 @@
 from typing import (
-    Union, Optional, TypeVar,
+    Union, Optional, TypeVar, Type,
     Callable, Any,
     Tuple, Dict,
 )
@@ -13,9 +13,15 @@ from collections import namedtuple
 import re
 
 
-# type aliases
+# --- type aliases
+#: Positional paramteters.
 Args = Tuple[Any]
+#: Keyword paramteters.
 KwArgs = Dict[str, Any]
+#: Function or method decorator.
+Decorator = Callable[[Callable], Callable]
+#: Class decorator
+ClassDecorator = Callable[[Type], Type]
 
 
 T = TypeVar('T')

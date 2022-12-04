@@ -349,3 +349,8 @@ if version < 20:
             return Settings(xbmc_addon=self)
 
     xbmcaddon.Addon = Addon
+
+
+addon: xbmcaddon.Addon = xbmcaddon.Addon()
+addon_id: str = addon.getAddonInfo('id')
+addon_name: str = addon.getAddonInfo('name')
