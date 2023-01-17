@@ -1,4 +1,4 @@
-from .base import LIBKA_ID
+from .base import LIBKA_ID, BaseAddon
 from .path import Path
 from typing import Optional, Union, Dict
 from xbmcvfs import translatePath
@@ -10,8 +10,8 @@ class Resources:
     Access do Addon resources.
     """
 
-    def __init__(self, addon, *, base: Optional[Union[Path, str]] = None):
-        self.addon = addon
+    def __init__(self, addon: Optional[BaseAddon] = None, *, base: Optional[Union[Path, str]] = None):
+        self.addon = BaseAddon() if addon is None else addon
         self._base: Path = None if base is None else Path(base)
         self._media: Media = None
         self._exist_map: Dict[Path, bool] = {}
@@ -51,8 +51,8 @@ class Media:
     Access do Addon resources media.
     """
 
-    def __init__(self, resources: Resources):
-        self.resources: Resources = resources
+    def __init__(self, resources: Optional[Resources] = None):
+        self.resources: Resources = Resources() if resources is None else resources
         self._transparent: Path = None
         self._black: Path = None
         self._white: Path = None

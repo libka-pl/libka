@@ -75,7 +75,7 @@ class BaseAddon(BaseAddonMixin):
         # Call BaseAddon, our single super class.
         super().__init__()
         #: Addon ID (ex. plugin.video.myplugin).
-        self.id: str = id
+        self.id: str = self.xbmc_addon.getAddonInfo('id') if id is None else id
         #: Kodi Addon instance.
         self.xbmc_addon: XbmcAddon
 
