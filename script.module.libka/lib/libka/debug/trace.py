@@ -1,11 +1,17 @@
 import sys
 import functools
 from enum import IntEnum
-from typing import Optional, Union, Callable, Any
+from pathlib import Path
+from typing import Optional, Union, Callable, Any, TYPE_CHECKING
 
 import xbmc
 from ..kodi import addon_id
 from ..logs import log
+
+if TYPE_CHECKING:
+    import inspect
+    Frame = type(inspect.currentframe())
+    Code = type(inspect.currentframe().f_code)
 
 
 class TraceMode(IntEnum):
@@ -208,3 +214,29 @@ def trace_deco(details: Union[Callable, TraceMode] = TraceMode.TRACE_CALL, level
         return decorator(method)
     # with parameters: @trace_deco(...)
     return decorator
+
+
+def profile(method: [Callable] = None, *, level: Optional[int] = None,
+            path: Optional[Union[Path, str]] = None, sort: str = 'cumtime') -> Callable:
+    import cProfile
+    import pstats
+
+    def wrapper(func: Callable):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            with cProfile.Profile() as pr:
+                # ... do something ...
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    with open(path or '/tmp/profile', 'w') as f:
+                        # pr.print_stats()
+                        ps = pstats.Stats(pr, stream=f).sort_stats(sort)
+                        ps.print_stats()
+
+        log_level: int = xbmc.LOGDEBUG if level is None else level
+        return wrapped
+
+    if callable(method):
+        return wrapper(method)
+    return wrapper
