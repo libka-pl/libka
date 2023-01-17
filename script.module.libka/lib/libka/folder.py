@@ -6,6 +6,7 @@ from inspect import signature
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
+from .path import Path
 from .logs import log
 import xbmcgui
 import xbmcplugin
@@ -610,7 +611,10 @@ class AddonDirectory:
                 if image is not None:
                     art.setdefault(iname, image)
             # setdefaultx(art, 'icon', addon_icon)
-        art = {k: 'https:' + v if isinstance(v, str) and v.startswith('//') else str(v) for k, v in art.items()}
+        art = {k: (f'https:{im}' if v.startswith('//')
+                   else im if '://' in im or Path(im).is_absolute()
+                   else self.addon.media.image(im))
+               for k, v in art.items() if v for im in (str(v),)}
         item.setArt(art)
         # serial
         if season is not None:
