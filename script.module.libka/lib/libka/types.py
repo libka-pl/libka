@@ -6,8 +6,10 @@ from typing import (
 import sys
 if sys.version_info >= (3, 8):
     from typing import get_origin, get_args
+    from typing import Literal  # noqa: F401
 else:
     from .py37 import get_origin, get_args
+    from typing_extensions import Literal    # noqa: F401
 from inspect import signature
 from collections import namedtuple
 import re

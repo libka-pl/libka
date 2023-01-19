@@ -1,15 +1,26 @@
+from typing import Optional, Union, Any, Dict, Callable, TYPE_CHECKING
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from contextlib import contextmanager
 from inspect import signature
+from datetime import datetime, date
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
 from .path import Path
+from .url import URL
 from .logs import log
 import xbmcgui
 import xbmcplugin
+from xbmc import Actor
+# from xbmc import VideoStreamDetail
+
+if TYPE_CHECKING:
+    from xbmc import InfoTagVideo
+
+
+Date = [date, datetime]
 
 
 class Cmp:
@@ -47,6 +58,7 @@ class ListItem:
 
     def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, sort_key=None, custom=None,
                  addon=None):
+        log.info(f'[LI] {name=}')
         if isinstance(name, xbmcgui.ListItem):
             self._libka_item = name
         else:
@@ -568,7 +580,12 @@ class AddonDirectory:
                 label = entry.title
         else:
             self._label_used = True
-        item = ListItem(label, url=entry.url, folder=folder, type=type, offscreen=offscreen,
+        list_item_label = label
+        if isinstance(_name, MediaItem):
+            list_item_label = _name.create()
+        elif isinstance(_name, xbmcgui.ListItem):
+            list_item_label = _name
+        item = ListItem(list_item_label, url=entry.url, folder=folder, type=type, offscreen=offscreen,
                         sort_key=sort_key, custom=custom)
         if folder is True:
             item.setIsFolder(folder)
@@ -878,3 +895,263 @@ class AddonContextMenu(list):
                 self.add(item)
 
     append_items = add_items
+
+
+class AddonStuff:
+    """
+    Dict with Kodi media infos. With extra API.
+    """
+    def __init__(self):
+        # self.addonPoster = control.addonPoster()
+        # self.addonBanner = control.addonBanner()
+        # self.addonFanart = control.addonFanart()
+        # self.settingFanart = control.setting('fanart')
+        self.addonPoster = None
+        self.addonBanner = None
+        self.addonFanart = None
+        self.settingFanart = True
+
+
+class MediaItemAttr:
+    """
+    Proxy to MediaItem dict with an attribute access.
+    Missing attributes return ''.
+    """
+
+    def __init__(self, *, media: 'MediaItem'):
+        self._media = media
+
+    def __repr__(self) -> str:
+        return f'MediaItemAttr({self._media})'
+
+    def __getattr__(self, key: str) -> Any:
+        return self._media.get(key, '')
+
+    def __setattr__(self, key: str, value: Any) -> None:
+        if key.startswith('_'):
+            object.__setattr__(self, key, value)  # skip super(), there is no other bases
+        else:
+            self._media[key] = value
+
+    def __delattr__(self, key: str) -> None:
+        self._media.pop(key, None)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._media.get(key, '')
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._media[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        self._media.pop(key, None)
+
+
+class MediaItem(dict):
+    """
+    Dict with Kodi media infos. With extra API.
+    """
+    _addon_stuff: AddonStuff = None
+
+    _re_date: re.Pattern = re.compile(r'([12]\d{3})(?:-([01]\d)-([123]\d)(?:[ t].*)?)?')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.type = 'video'
+
+    def __getattr__(self, key: str) -> Any:
+        """Returns None for any unknown attribite."""
+        return None
+
+    @property
+    def attr(self) -> MediaItemAttr:
+        """Access via attributes."""
+        return MediaItemAttr(media=self)
+
+    a = attr
+    an = attr
+    the = attr
+
+    @property
+    def tmdb(self) -> str:
+        """TMDB ID."""
+        return self.get('tmdb', '')
+
+    @property
+    def imdb(self) -> str:
+        """IMDB ID."""
+        return self.get('imdb', '')
+
+    @property
+    def title(self) -> str:
+        """Title."""
+        return self.get('title', '')
+
+    def clone(self) -> 'MediaItem':
+        media: MediaItem = MediaItem(self)
+        media.__dict__.update(self.__dict__)
+        return media
+
+    def create(self, label: Optional[str] = None) -> xbmcgui.ListItem:
+        """
+        Create a ListItem and set all infos into Kodi ListItem.
+        """
+        if label is None:
+            label = self.get('title', '')
+        li: ListItem = xbmcgui.ListItem(label)
+        self.set(li)
+        return li
+
+    def set(self, list_item: xbmcgui.ListItem) -> None:
+        """
+        Set all infos into Kodi ListItem.
+        Only video media is supporteed at the moment.
+        """
+        def has(key: str) -> Any:
+            val = self.get(key)
+            return val and val != '0'
+
+        def get(key: str, default: str = '') -> Any:
+            val = self.get(key)
+            return val if val and val != '0' else default
+
+        stuff: AddonStuff = self.addon_stuff()
+        vtag: 'InfoTagVideo' = list_item.getVideoInfoTag()
+
+        # --- IDs ---
+        ids: Dict[str, str] = {key: self[key] for key in ('tmdb', 'imdb', ) if has(key)}
+        if ids:
+            vtag.setUniqueIDs(ids, 'tmdb' if 'tmdb' in ids else '')
+
+        # --- title etc. ---
+        for name in ('Title', 'OriginalTitle', 'Plot', 'TagLine', 'Mpaa'):  # str
+            # Names are from InfoTagVideo (func name) and string media data (lower),
+            # then Title → vtag.setTitle(str(self['title']))
+            key: str = name.lower()
+            if has(key):
+                setter: Callable = getattr(vtag, f'set{name}')
+                if setter:
+                    setter(str(self[key]))
+
+        for name in ('Year', 'Duration'):  # int
+            # Names are from InfoTagVideo (func name) and integer media data (lower),
+            # then Year → vtag.setYear(int(self['year']))
+            key: str = name.lower()
+            if has(key):
+                setter: Callable = getattr(vtag, f'set{name}')
+                if setter:
+                    val = self[key]
+                    if isinstance(val, (date, datetime)):
+                        setter(val.year)
+                    else:
+                        setter(int(val))
+
+        for name in ('Genres', 'Directors', 'Writers', 'Countries', 'Studios'):  # list[str]
+            # Names are from InfoTagVideo (func name) and list of str media data (lower),
+            # then Genres → vtag.setGenres(list(self['genres']))
+            key: str = name.lower()
+            if has(key):
+                setter: Callable = getattr(vtag, f'set{name}')
+                if setter:
+                    lst = self[key]
+                    if isinstance(lst, str):
+                        lst = [str]
+                    setter(lst)
+
+        for name in ('Premiered',):  # date
+            # Names are from InfoTagVideo (func name) and list of str media data (lower),
+            # then Genres → vtag.setGenres(list(self['genres']))
+            key: str = name.lower()
+            if has(key):
+                setter: Callable = getattr(vtag, f'set{name}')
+                if setter:
+                    val = self[key]
+                    if isinstance(val, datetime):
+                        val = val.date()
+                    setter(str(val))
+
+        # --- casts, directors etc. ---
+        castwiththumb = self.get('castwiththumb')
+        if castwiththumb:
+            castwiththumb = [Actor(**a) for a in castwiththumb]
+            vtag.setCast(castwiththumb)
+        if has('rating'):
+            vtag.setRating(self['rating'], self.get('votes', -1), 'tmdb', True)
+
+        # --- art ---
+        poster: str = self.get('poster', stuff.addonPoster)
+        art: Dict[str, str] = {'icon': poster, 'thumb': poster, 'poster': poster}
+        fanart: str = self['fanart'] if stuff.settingFanart and has('fanart') else stuff.addonFanart
+
+        art['fanart'] = fanart
+        art['landscape'] = get('landscape', fanart)
+        art['banner'] = get('banner', stuff.addonBanner)
+
+        for key in ('clearlogo', 'clearart'):
+            if has(key):
+                art[key] = self[key]
+
+        list_item.setArt(art)
+
+        # --- info ---
+        info = {}
+        for key in ('status', ):
+            if has(key):
+                info[key] = self[key]
+        if info:
+            list_item.setInfo(self.type, info)
+        # L(f'{self.keys()=}')
+
+        # --- misc ---
+        # vtag.addVideoStream(VideoStreamDetail(codec='h264'))  # XXX: Why 'h264' for all videos???
+
+    @classmethod
+    def addon_stuff(cls) -> ...:
+        if cls._addon_stuff is None:
+            cls._addon_stuff = AddonStuff()
+        return cls._addon_stuff
+
+    @classmethod
+    def parse_date(cls, value: str) -> date:
+        if value:
+            if isinstance(value, int):
+                return date(value, 1, 1)
+            if isinstance(value, date):
+                return value
+            if isinstance(value, datetime):
+                return value.date()
+            mch = cls._re_date.match(value)
+            if mch:
+                y, m, d = mch.groups()
+                return date(int(y), int(m or 1), int(d or 1))
+        return None
+
+    @classmethod
+    def parse_year(cls, value: str) -> int:
+        if value:
+            if isinstance(value, int):
+                return value
+            if isinstance(value, (date, datetime)):
+                return value.year
+            mch = cls._re_date.match(value)
+            if mch:
+                return int(mch[1])
+        return None
+
+
+class MediaList(list):
+    """
+    List of MediaItem with some extra properties.
+    """
+
+    def __init__(self, *args,
+                 next: Optional[Union[str, URL]] = None,
+                 page: Optional[int] = None,
+                 total: Optional[int] = None,
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+        #: URL to next page or None.
+        self.next_url: URL = None if next is None else URL(next)
+        #: The Page number or zero.
+        self.page: int = int(page or 0)
+        #: The total page number or zero.
+        self.total: int = int(total or 0)

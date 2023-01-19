@@ -59,7 +59,12 @@ class BaseAddon(BaseAddonMixin):
     _instances = {}
 
     def __new__(cls, *, id: Optional[str] = None):
+        default_adoon: bool = id is None
+        xbmc_addon: XbmcAddon = None
         if id is None:
+            obj = BaseAddon._instances.get(None)
+            if obj is not None:
+                return obj
             xbmc_addon = registry.xbmc_addon
             id = xbmc_addon.getAddonInfo('id')
         else:
@@ -69,6 +74,8 @@ class BaseAddon(BaseAddonMixin):
         obj = super().__new__(cls)
         obj.xbmc_addon = xbmc_addon
         BaseAddon._instances[id] = obj
+        if default_adoon:
+            BaseAddon._instances[None] = obj
         return obj
 
     def __init__(self, *, id: Optional[str] = None):
