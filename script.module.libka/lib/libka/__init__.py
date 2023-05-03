@@ -10,7 +10,7 @@ import os
 from kover import autoinstall  # noqa: F401
 
 #: Libka version.
-__version__ = '0.0.26'
+__version__ = '0.0.30'
 
 # Support for remote `breakpoint()`.
 os.environ.setdefault('PYTHONBREAKPOINT', 'remote_pdb.set_trace')
