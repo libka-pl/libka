@@ -7,8 +7,8 @@ from typing import (
     List, Tuple,
 )
 import time
-from .logs import log as klog
-from .tools import wraps_class
+from ..logs import log as klog
+from ..tools import wraps_class
 
 import xbmc
 import xbmcplugin

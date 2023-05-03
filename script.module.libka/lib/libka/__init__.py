@@ -10,14 +10,12 @@ import os
 from kover import autoinstall  # noqa: F401
 
 #: Libka version.
-__version__ = '0.0.23'
+__version__ = '0.0.26'
 
 # Support for remote `breakpoint()`.
-os.environ.update({
-    'PYTHONBREAKPOINT': 'remote_pdb.set_trace',
-    'REMOTE_PDB_HOST': '0.0.0.0',
-    'REMOTE_PDB_PORT': '4444',
-})
+os.environ.setdefault('PYTHONBREAKPOINT', 'remote_pdb.set_trace')
+os.environ.setdefault('REMOTE_PDB_HOST', '0.0.0.0')
+os.environ.setdefault('REMOTE_PDB_PORT', '4444')
 
 # Add paths to 3rd-party libs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '3rd'))

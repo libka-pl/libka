@@ -1,4 +1,4 @@
-from typing import Optional, Union, Any, Dict, Callable, TYPE_CHECKING
+from typing import Optional, Union, Any, Tuple, List, Dict, Callable, TYPE_CHECKING
 import re
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
@@ -8,6 +8,7 @@ from datetime import datetime, date
 from .tools import setdefaultx
 from .kodi import version_info as kodi_ver
 from .format import safefmt
+from .types import Literal
 from .path import Path
 from .url import URL
 from .logs import log
@@ -474,10 +475,32 @@ class AddonDirectory:
             self.sort_list.append(Sort(method, labelMask, label2Mask))
 
     # @trace
-    def new(self, _name, endpoint=None, *, offscreen=None, folder=False, playable=False,
-            label=None, title=None, descr=None, format=None, style=None,
-            image=None, fanart=None, thumb=None, properties=None, position=None, menu=None,
-            type=None, info=None, art=None, season=None, episode=None, label2=None, sort_key=None, custom=None):
+    def new(self,
+            _name: Union[str, Callable, Dict, 'MediaItem', ListItem],
+            endpoint: Optional[Callable] = None,
+            *,
+            offscreen: Optional[bool] = None,
+            folder: bool = False,
+            playable: bool = False,
+            label: Optional[str] = None,
+            title: Optional[str] = None,
+            descr: Optional[str] = None,
+            format: Optional[str] = None,
+            style: Optional[str] = None,
+            image: Optional[Union[str, URL]] = None,
+            fanart: Optional[Union[str, URL]] = None,
+            thumb: Optional[Union[str, URL]] = None,
+            properties: Optional[Dict[str, Any]] = None,
+            position: Optional[Literal['top', 'bottom']] = None,
+            menu: Optional[Union[List[str], List[Tuple[str, Callable]], 'AddonContextMenu']] = None,
+            type: Optional[Literal['video', 'music', 'pictures', 'game']] = None,
+            info: Optional[Dict[str, Any]] = None,
+            art: Optional[Dict[str, Union[str, URL]]] = None,
+            season: Optional[int] = None,
+            episode: Optional[int] = None,
+            label2: Optional[str] = None,
+            sort_key: Optional[Any] = None,
+            custom: Optional[Any] = None):
         """
         Create new list item, can be added to current directory list.
 
@@ -571,8 +594,14 @@ class AddonDirectory:
         else:
             _title = title
         entry = self.router.mkentry(name, endpoint, title=_title, style=style)
-        label = entry.label
         log.xdebug(f'new: {entry=!r}')
+        if label is None:
+            if isinstance(_name, dict):  # dict & MediaItem
+                label = _name.get('label', _name.get('title'))
+            elif isinstance(_name, xbmcgui.ListItem):
+                label = _name.getLabel()
+            else:
+                label = entry.label
         if label is None:
             if entry.title is None:
                 label = str(entry.url)
@@ -615,7 +644,8 @@ class AddonDirectory:
             info['season'] = season
         if episode is not None:
             info['episode'] = episode
-        item.setInfo(type, info or {})
+        if info:
+            item.setInfo(type, info or {})
         # art / images
         art = {} if art is None else dict(art)
         setdefaultx(art, 'icon', image, self.image)
@@ -632,7 +662,8 @@ class AddonDirectory:
                    else im if '://' in im or Path(im).is_absolute()
                    else self.addon.media.image(im))
                for k, v in art.items() if v for im in (str(v),)}
-        item.setArt(art)
+        if art:
+            item.setArt(art)
         # serial
         if season is not None:
             if not isinstance(season, str) and isinstance(season, Sequence):
@@ -647,6 +678,7 @@ class AddonDirectory:
                 label.title = safefmt(format, entry.title, **info)
             label = safefmt(format, label, **info)
         label = self.addon.format_title(label, entry.style, n=len(self.item_list) + 1)
+        log.xdebug(f'[new]: {label=!r}, {info=!r}')
         item.setLabel(label)
         return item
 

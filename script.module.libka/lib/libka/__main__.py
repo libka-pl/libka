@@ -3,13 +3,14 @@
 #
 
 import sys
-from .debug import xbmc_debug
+from .debug.outside import xbmc_debug
 from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, SafeQuoteStr, search, entry
 # from . import Site
 from .lang import text
 from .logs import log
 from . import path as pathmod
 from .cache import cached
+from .folder import MediaItem
 from typing import Optional
 
 
@@ -196,6 +197,15 @@ class MyPlugin(SimplePlugin):
         print([len(c) for c in con], '0:', len(con[0]))
         print([len(v) for v in con.values()])
         print([f'{k}={len(v)}' for k, v in con.items()])
+
+    def d(self):
+        with self.directory() as kd:
+            kd.item(MediaItem(title='QWE'), self.e)
+            kd.item('test')
+
+    def e(self):
+        with self.directory() as kd:
+            kd.item(MediaItem(title='QWE'), self.d)
 
 
 # VideoInfo = namedtuple('VideoInfo', 'title genre duration year')
