@@ -59,7 +59,6 @@ class ListItem:
 
     def __init__(self, name, *, url=None, folder=None, type=None, offscreen=True, sort_key=None, custom=None,
                  addon=None):
-        log.info(f'[LI] {name=}')
         if isinstance(name, xbmcgui.ListItem):
             self._libka_item = name
         else:
