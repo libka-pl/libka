@@ -212,6 +212,8 @@ class Router:
         if isinstance(endpoint, Call):
             method = endpoint.method
         #    raise TypeError('mkentry endpoint must be Addon method or str not %r' % type(endpoint))
+        if isinstance(label, Mapping):  # MediaItem() or just dict()
+            label, title = label.get('label'), label.get('title')
         if label is None and title is not None:
             label = title
         if label is None:

@@ -22,7 +22,7 @@ class LabelGetter:
         ...
 
     @overload
-    def getter(self, id: int, string: str):
+    def getter(self, string: str):
         ...
 
     def getter(self, *args):
