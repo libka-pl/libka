@@ -10,6 +10,8 @@ except ImportError:
 class Path(str):
 
     def __new__(cls, *args, **kwargs):
+        if not args:
+            args = ('.', )
         return str.__new__(cls, os.path.join(*args), **kwargs)
 
     def __repr__(self):

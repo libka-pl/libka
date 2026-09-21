@@ -51,6 +51,8 @@ class Storage:
         Write pretty data if serializer handle it (ex. `json`).
     serializer: str or object or class or module
         Serializer and deserializer for data.
+    suffix: str or None
+        Force DB file suffix. If None suffix is get from serializer type.
 
     Main API is `Storage.get()`, `Storage.set()` and `Storage.remove()`.
 
@@ -58,7 +60,7 @@ class Storage:
 
     - `json` – use JSON
     - `pickle` – user pickle module
-    - object – use ovject `load(path)` and `save(data, path, pretty)`
+    - object – use object `load(path)` and `save(data, path, pretty)`
     - class – create and use `class()` object
     - module – call `module.load(f)` and `module.dump(data, f)`, where `f` is opened binary file
                like `pickle` or `marshal`
@@ -73,9 +75,16 @@ class Storage:
         json: Json,
     }
 
-    def __init__(self, path: Optional[Union[Path, str]] = None, *, addon: BaseAddon, default: Optional[Any] = None,
-                 sync: Optional[bool] = False, pretty: Optional[bool] = True,
-                 serializer: Optional[Union[SerializerType, str]] = None):
+    def __init__(self,
+                 path: Optional[Union[Path, str]] = None,
+                 *,
+                 addon: BaseAddon,
+                 default: Optional[Any] = None,
+                 sync: Optional[bool] = False,
+                 pretty: Optional[bool] = True,
+                 serializer: Optional[Union[SerializerType, str]] = None,
+                 suffix: Optional[str] = None,
+                 ) -> None:
         # Guess data serializer.
         if serializer is None:
             serializer = Json
@@ -86,7 +95,8 @@ class Storage:
         elif isclass(serializer):
             serializer = serializer()
         # Guess suffix and storage path.
-        suffix: str = getattr(serializer, 'SUFFIX', 'data')
+        if suffix is None:
+            suffix: str = getattr(serializer, 'SUFFIX', 'data')
         if path is None:
             path = 'data{suffix}'
         if isinstance(path, str):

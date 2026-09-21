@@ -16,6 +16,11 @@ def log(*msg, sep=' ', title=None, level=None):
     xbmc.log(msg, level)
 
 
+def log_xxx(*msg, sep=' ', title=None):
+    """Develop strong debugs."""
+    log(*msg, level=xbmc.LOGERROR)
+
+
 def log_error(*msg, sep=' ', title=None):
     log(*msg, level=xbmc.LOGERROR)
 
@@ -36,6 +41,7 @@ def log_xdebug(*msg, sep=' ', title=None):
     pass
 
 
+log.xxx = log_xxx
 log.error = log_error
 log.warning = log_warning
 log.info = log_info

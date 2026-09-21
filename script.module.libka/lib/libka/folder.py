@@ -499,7 +499,8 @@ class AddonDirectory:
             episode: Optional[int] = None,
             label2: Optional[str] = None,
             sort_key: Optional[Any] = None,
-            custom: Optional[Any] = None):
+            custom: Optional[Any] = None,
+            ) -> ListItem:
         """
         Create new list item, can be added to current directory list.
 

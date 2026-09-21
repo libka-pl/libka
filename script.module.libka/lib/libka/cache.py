@@ -6,6 +6,7 @@ Cache module. Storage any data, specially JSON responses.
 from typing import (
     Optional,
     Set,
+    NamedTuple,
 )
 from collections import namedtuple
 from functools import wraps
@@ -15,7 +16,11 @@ from .utils import encode_params
 from .registry import registry, register_singleton
 
 
-Ref = namedtuple('Ref', 'name')
+class Ref(NamedTuple):
+    """Simple argument reference to `default` attr dict."""
+
+    #: Name of default attribure.
+    name: str
 
 
 class Cache:
@@ -57,11 +62,11 @@ def cached(*args, expires: Optional[int] = None, key: Optional[str] = None, skip
             storage = registry.cache_storage
 
         @wraps(method)
-        def wrapper(*args, **kwargs):
+        def wrapped(*args, **kwargs):
             if key is None:
                 kw = {i: a for i, a in enumerate(args)}
                 kw.update(() for k, v in kwargs.items() if skip is None or k not in skip)
-                the_key = '{}?{}'.format(method.__name__, encode_params(kw))
+                the_key = '{}?{}'.format(method.__qualname__, encode_params(kw))
             else:
                 the_key = key
             data = storage.get(the_key, MissingCache)
@@ -71,7 +76,7 @@ def cached(*args, expires: Optional[int] = None, key: Optional[str] = None, skip
                 storage.save()
             return data
 
-        return wrapper
+        return wrapped
 
     if len(args) > 1:
         raise TypeError('Too many positional arguments, use @cached or @cached(key=value, ...)')

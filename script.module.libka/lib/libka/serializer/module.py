@@ -1,15 +1,19 @@
 from typing import Union, Any
+from types import ModuleType
 from ..path import Path
 from ..logs import log
 
 
 class Module:
-    """Custom module serializer for user data. Module must have `load()` and `dump()` functions."""
+    """
+    Custom module serializer for user data.
+    Module (or object) must have `load()` and `dump()` functions.
+    """
 
     SUFFIX = '.data'
 
-    def __init__(self, *, module):
-        self.module = module
+    def __init__(self, *, module: ModuleType) -> None:
+        self.module: ModuleType = module
 
     def load(self, path: Union[Path, str]) -> Any:
         try:

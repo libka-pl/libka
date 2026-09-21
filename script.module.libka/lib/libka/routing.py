@@ -14,6 +14,7 @@ from typing import (
     Union, Optional, Callable, Any,
     get_type_hints,
     Dict, List, Tuple,
+    TYPE_CHECKING,
 )
 if sys.version_info >= (3, 8):
     from typing import get_origin, get_args
@@ -27,6 +28,8 @@ from .types import (
     uint, pint, mkbool,
     Args, KwArgs,
 )
+if TYPE_CHECKING:
+    from .addon import Addon
 
 
 # type aliases
@@ -295,7 +298,12 @@ class Router:
         for p in sig.parameters.values():
             ht = hints.get(p.name)
             if PathArg.subtype(ht) is not None:
-                value = params.pop(p.name)
+                try:
+                    value = params.pop(p.name)
+                except KeyError:
+                    if p.default is sig.empty:
+                        raise
+                    value = p.default
                 if isinstance(value, SafeQuoteStr):
                     # Hack, allow extra characters in path (it breaks RFC).
                     value = value.as_url()
@@ -310,9 +318,7 @@ class Router:
                     count += 1
 
     def mkurl(self, endpoint: Union[str, Callable], *args, **kwargs) -> str:
-        """
-        Create plugin URL to given name/method with arguments.
-        """
+        """Create plugin URL to given name/method with arguments."""
         def fill_path_args(name: str, type: Optional[str] = None) -> Union[str, URL]:
             """Substitute "<[type:]param>"."""
             if name == 'self':
@@ -361,7 +367,8 @@ class Router:
                 else:
                     names = self._find_object_path(endpoint)
                 if not names:
-                    raise ValueError(f'Object {endpoint!r} not found')
+                    if endpoint.__module__ not in sys.builtin_module_names:
+                        raise ValueError(f'Object {endpoint!r} not found')
             self._make_path_args(func, names, params, raw)
             # Return list of path parts.
             return names
@@ -445,7 +452,7 @@ class Router:
     def _convert_args(self, method: Callable, args: Args, kwargs: KwArgs, *, sig: Signature) -> Call:
         """Convert method arguments based on annotations."""
         def posargs():
-            """Generator for itarate positional parameters."""
+            """Generate for itarate positional parameters."""
             for p in sig.parameters.values():
                 if p.kind == p.VAR_POSITIONAL:
                     while True:
@@ -496,9 +503,7 @@ class Router:
         return Call(method, args, kwargs)
 
     def _dispatcher_args(self, method: Callable, params: Params, entry: EndpointEntry) -> Call:
-        """
-        Dispatcher helper. Find method args and kwargs.
-        """
+        """Dispatcher helper. Find method args and kwargs."""
         sig = signature(method)
         args = []
         i = 0
@@ -562,9 +567,7 @@ class Router:
 
     def _dispatcher_entry(self, url: Union[URL, str], *,
                           root: Callable, missing: Optional[Callable] = None) -> Call:
-        """
-        Dispatcher helper. Find pointed method with request arguments.
-        """
+        """Dispatcher helper. Find pointed method with request arguments."""
         # Request (dack typing)
         if isinstance(url, URL):
             pass
@@ -646,6 +649,7 @@ class Router:
                  missing: Optional[Callable] = None) -> Any:
         """
         Dispatcher. Call pointed method with request arguments.
+
         See: sync_dispatch() and async_dispatch().
 
         >>> def foo():
@@ -654,7 +658,6 @@ class Router:
         >>> async def bar():
         >>>     await Router().dispatch(url)
         """
-
         try:
             # Test if loop is working.
             asyncio.get_running_loop()

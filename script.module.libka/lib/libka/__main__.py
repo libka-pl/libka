@@ -3,15 +3,22 @@
 #
 
 import sys
-from .debug.outside import xbmc_debug
-from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, SafeQuoteStr, search, entry
-# from . import Site
-from .lang import text
-from .logs import log
-from . import path as pathmod
-from .cache import cached
-from .folder import MediaItem
-from typing import Optional
+import os
+from pathlib import Path
+from . import __version__  # noqa: F401
+os.environ.pop('PYTHONBREAKPOINT', None)
+os.environ.pop('REMOTE_PDB_HOST', None)
+os.environ.pop('REMOTE_PDB_PORT', None)
+
+from .debug.outside import xbmc_debug  # noqa: E402
+from . import SimplePlugin, Plugin, Site, call, PathArg, RawArg, SafeQuoteStr, search, entry  # noqa: E402
+# from . import Site  # noqa: E402
+from .lang import text  # noqa: E402
+from .logs import log  # noqa: E402
+from . import path as pathmod  # noqa: E402
+from .cache import cached  # noqa: E402
+from .folder import MediaItem  # noqa: E402
+from typing import Optional  # noqa: E402
 
 
 xbmc_debug(fake=True, console=True, items=True)
@@ -63,6 +70,8 @@ class MyPlugin(SimplePlugin):
 
     def __init__(self):
         super().__init__()
+        print(self.mkurl(self.tree))
+        print(self.mkurl(sys.exit))
         print(self.mkurl(call(self.get_search_tabs, [1, 2, 3])))
         print(self.mkurl(call(self.baz, '{}')))
         print(self.mkurl(call(self.baz, SafeQuoteStr('{}'))))
@@ -206,6 +215,12 @@ class MyPlugin(SimplePlugin):
     def e(self):
         with self.directory() as kd:
             kd.item(MediaItem(title='QWE'), self.d)
+
+    def tree(self, path: PathArg[Path] = Path()):
+        with self.directory(sort='|%Y') as kd:
+            for i in range(100):
+                name = f'Next folder {i+1}'
+                kd.menu(name, call(self.tree, path / f'f{i+1:04}'), descr=f'Next level folder {i+1}')
 
 
 # VideoInfo = namedtuple('VideoInfo', 'title genre duration year')
