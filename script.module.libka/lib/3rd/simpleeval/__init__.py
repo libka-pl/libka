@@ -1,5 +1,5 @@
 """
-SimpleEval - (C) 2013-2022 Daniel Fairhead
+SimpleEval - (C) 2013-2024 Daniel Fairhead
 -------------------------------------
 
 An short, easy to use, safe and reasonably extensible expression evaluator.
@@ -49,12 +49,20 @@ Contributors:
 - mommothazaz123 (Andrew Zhu) f"string" support, Python 3.8 support
 - lubieowoce (Uryga) various potential vulnerabilities
 - JCavallo (Jean Cavallo) names dict shouldn't be modified
-- Birne94 (Daniel Birnstiel) for fixing leaking generators.
+- Birne94 (Daniel Birnstiel) for fixing leaking generators, star expressions
 - patricksurry (Patrick Surry) or should return last value, even if falsy.
 - shughes-uk (Samantha Hughes) python w/o 'site' should not fail to import.
-- KOLANICH packaging / deployment / setup help & << + >> ops
+- KOLANICH packaging / deployment / setup help & << + >> & other bit ops
 - graingert (Thomas Grainger) packaging / deployment / setup help
 - bozokopic (Bozo Kopic) Memory leak fix
+- daxamin (Dax Amin) Better error for attempting to eval empty string
+- smurfix (Matthias Urlichs) Allow clearing functions / operators / etc completely
+- koenigsley (Mikhail Yeremeyev) documentation typos correction.
+- kurtmckee (Kurt McKee) Infrastructure updates
+- edgarrmondragon (Edgar Ramírez-Mondragón) Address Python 3.12+ deprecation warnings
+- cedk (Cédric Krier) <ced@b2ck.com> Allow running tests with Werror
+- decorator-factory <decorator-factory@protonmail.com> More security fixes
+- lkruitwagen (Lucas Kruitwagen) Adding support for dict comprehensions
 
 -------------------------------------
 Basic Usage:
@@ -100,8 +108,6 @@ import sys
 import warnings
 from random import random
 
-PYTHON3 = sys.version_info[0] == 3
-
 ########################################
 # Module wide 'globals'
 
@@ -109,27 +115,32 @@ MAX_STRING_LENGTH = 100000
 MAX_COMPREHENSION_LENGTH = 10000
 MAX_POWER = 4000000  # highest exponent
 MAX_SHIFT = 10000  # highest << or >> (lshift / rshift)
+MAX_SHIFT_BASE = int(sys.float_info.max)  # highest on left side of << or >>
 DISALLOW_PREFIXES = ["_", "func_"]
-DISALLOW_METHODS = ["format", "format_map", "mro"]
+DISALLOW_METHODS = [
+    "format",
+    "format_map",
+    "mro",
+    "tb_frame",
+    "gi_frame",
+    "ag_frame",
+    "cr_frame",
+    "exec",
+]
 
 # Disallow functions:
-# This, strictly speaking, is not necessary.  These /should/ never be accessable anyway,
+# This, strictly speaking, is not necessary.  These /should/ never be accessible anyway,
 # if DISALLOW_PREFIXES and DISALLOW_METHODS are all right.  This is here to try and help
 # people not be stupid.  Allowing these functions opens up all sorts of holes - if any of
 # their functionality is required, then please wrap them up in a safe container.  And think
 # very hard about it first.  And don't say I didn't warn you.
 # builtins is a dict in python >3.6 but a module before
-DISALLOW_FUNCTIONS = {type, isinstance, eval, getattr, setattr, repr, compile, open}
+DISALLOW_FUNCTIONS = {type, isinstance, eval, getattr, setattr, repr, compile, open, exec}
 if hasattr(__builtins__, "help") or (
-    hasattr(__builtins__, "__contains__") and "help" in __builtins__
+    hasattr(__builtins__, "__contains__") and "help" in __builtins__  # type: ignore
 ):
     # PyInstaller environment doesn't include this module.
     DISALLOW_FUNCTIONS.add(help)
-
-
-if PYTHON3:
-    # exec is not a function in Python2...
-    exec("DISALLOW_FUNCTIONS.add(exec)")  # pylint: disable=exec-used
 
 
 ########################################
@@ -179,6 +190,17 @@ class AttributeDoesNotExist(InvalidExpression):
         super(InvalidExpression, self).__init__(self.message)
 
 
+class OperatorNotDefined(InvalidExpression):
+    """operator does not exist"""
+
+    def __init__(self, attr, expression):
+        self.message = "Operator '{0}' does not exist in expression '{1}'".format(attr, expression)
+        self.attr = attr
+        self.expression = expression
+
+        super(InvalidExpression, self).__init__(self.message)
+
+
 class FeatureNotAvailable(InvalidExpression):
     """What you're trying to do is not allowed."""
 
@@ -204,6 +226,12 @@ class AssignmentAttempted(UserWarning):
     pass
 
 
+class MultipleExpressions(UserWarning):
+    """Only the first expression parsed will be used"""
+
+    pass
+
+
 ########################################
 # Default simple functions to include:
 
@@ -219,16 +247,16 @@ def safe_power(a, b):  # pylint: disable=invalid-name
 
     if abs(a) > MAX_POWER or abs(b) > MAX_POWER:
         raise NumberTooHigh("Sorry! I don't want to evaluate {0} ** {1}".format(a, b))
-    return a ** b
+    return a**b
 
 
 def safe_mult(a, b):  # pylint: disable=invalid-name
     """limit the number of times an iterable can be repeated..."""
 
     if hasattr(a, "__len__") and b * len(a) > MAX_STRING_LENGTH:
-        raise IterableTooLong("Sorry, I will not evalute something that long.")
+        raise IterableTooLong("Sorry, I will not evaluate something that long.")
     if hasattr(b, "__len__") and a * len(b) > MAX_STRING_LENGTH:
-        raise IterableTooLong("Sorry, I will not evalute something that long.")
+        raise IterableTooLong("Sorry, I will not evaluate something that long.")
 
     return a * b
 
@@ -245,15 +273,15 @@ def safe_add(a, b):  # pylint: disable=invalid-name
 
 
 def safe_rshift(a, b):  # pylint: disable=invalid-name
-    """rshift, but with the maximum"""
-    if abs(b) > MAX_SHIFT:
+    """rshift, but with input limits"""
+    if abs(b) > MAX_SHIFT or abs(a) > MAX_SHIFT_BASE:
         raise NumberTooHigh("Sorry! I don't want to evaluate {0} >> {1}".format(a, b))
     return a >> b
 
 
 def safe_lshift(a, b):  # pylint: disable=invalid-name
-    """lshift, but with the maximum"""
-    if abs(b) > MAX_SHIFT:
+    """lshift, but with input limits"""
+    if abs(b) > MAX_SHIFT or abs(a) > MAX_SHIFT_BASE:
         raise NumberTooHigh("Sorry! I don't want to evaluate {0} << {1}".format(a, b))
     return a << b
 
@@ -280,6 +308,10 @@ DEFAULT_OPERATORS = {
     ast.Not: op.not_,
     ast.USub: op.neg,
     ast.UAdd: op.pos,
+    ast.BitXor: op.xor,
+    ast.BitOr: op.or_,
+    ast.BitAnd: op.and_,
+    ast.Invert: op.invert,
     ast.In: lambda x, y: op.contains(y, x),
     ast.NotIn: lambda x, y: not op.contains(y, x),
     ast.Is: lambda x, y: x is y,
@@ -291,7 +323,7 @@ DEFAULT_FUNCTIONS = {
     "randint": random_int,
     "int": int,
     "float": float,
-    "str": str if PYTHON3 else unicode,
+    "str": str,
 }
 
 DEFAULT_NAMES = {"True": True, "False": False, "None": None}
@@ -317,11 +349,11 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
         Create the evaluator instance.  Set up valid operators (+,-, etc)
         functions (add, random, get_val, whatever) and names."""
 
-        if not operators:
+        if operators is None:
             operators = DEFAULT_OPERATORS.copy()
-        if not functions:
+        if functions is None:
             functions = DEFAULT_FUNCTIONS.copy()
-        if not names:
+        if names is None:
             names = DEFAULT_NAMES.copy()
 
         self.operators = operators
@@ -333,8 +365,6 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
             ast.Assign: self._eval_assign,
             ast.AugAssign: self._eval_aug_assign,
             ast.Import: self._eval_import,
-            ast.Num: self._eval_num,
-            ast.Str: self._eval_str,
             ast.Name: self._eval_name,
             ast.UnaryOp: self._eval_unaryop,
             ast.BinOp: self._eval_binop,
@@ -347,22 +377,23 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
             ast.Attribute: self._eval_attribute,
             ast.Index: self._eval_index,
             ast.Slice: self._eval_slice,
+            ast.JoinedStr: self._eval_joinedstr,
+            ast.FormattedValue: self._eval_formattedvalue,
+            ast.Constant: self._eval_constant,
         }
 
-        # py3k stuff:
-        if hasattr(ast, "NameConstant"):
-            self.nodes[ast.NameConstant] = self._eval_constant
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # py3.12 deprecated ast.Num, ast.Str, ast.NameConstant
+            # https://docs.python.org/3.12/whatsnew/3.12.html#deprecated
+            if Num := getattr(ast, "Num", None):
+                self.nodes[Num] = self._eval_num
 
-        # py3.6, f-strings
-        if hasattr(ast, "JoinedStr"):
-            self.nodes[ast.JoinedStr] = self._eval_joinedstr  # f-string
-            self.nodes[
-                ast.FormattedValue
-            ] = self._eval_formattedvalue  # formatted value in f-string
+            if Str := getattr(ast, "Str", None):
+                self.nodes[Str] = self._eval_str
 
-        # py3.8 uses ast.Constant instead of ast.Num, ast.Str, ast.NameConstant
-        if hasattr(ast, "Constant"):
-            self.nodes[ast.Constant] = self._eval_constant
+            if NameConstant := getattr(ast, "NameConstant", None):
+                self.nodes[NameConstant] = self._eval_constant
 
         # Defaults:
 
@@ -377,16 +408,29 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
     def __del__(self):
         self.nodes = None
 
-    def eval(self, expr):
-        """evaluate an expresssion, using the operators, functions and
+    @staticmethod
+    def parse(expr):
+        """parse an expression into a node tree"""
+
+        parsed = ast.parse(expr.strip())
+
+        if not parsed.body:
+            raise InvalidExpression("Sorry, cannot evaluate empty string")
+        if len(parsed.body) > 1:
+            warnings.warn(
+                "'{}' contains multiple expressions. Only the first will be used.".format(expr),
+                MultipleExpressions,
+            )
+        return parsed.body[0]
+
+    def eval(self, expr, previously_parsed=None):
+        """evaluate an expression, using the operators, functions and
         names previously set up."""
 
         # set a copy of the expression aside, so we can give nice errors...
-
         self.expr = expr
 
-        # and evaluate:
-        return self._eval(ast.parse(expr.strip()).body[0])
+        return self._eval(previously_parsed or self.parse(expr))
 
     def _eval(self, node):
         """The internal evaluator used on each node in the parsed tree."""
@@ -415,7 +459,8 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
         )
         return self._eval(node.value)
 
-    def _eval_import(self, node):
+    @staticmethod
+    def _eval_import(node):
         raise FeatureNotAvailable("Sorry, 'import' is not allowed.")
 
     @staticmethod
@@ -426,8 +471,9 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
     def _eval_str(node):
         if len(node.s) > MAX_STRING_LENGTH:
             raise IterableTooLong(
-                "String Literal in statement is too long!"
-                " ({0}, when {1} is max)".format(len(node.s), MAX_STRING_LENGTH)
+                "String Literal in statement is too long! ({0}, when {1} is max)".format(
+                    len(node.s), MAX_STRING_LENGTH
+                )
             )
         return node.s
 
@@ -435,31 +481,39 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
     def _eval_constant(node):
         if hasattr(node.value, "__len__") and len(node.value) > MAX_STRING_LENGTH:
             raise IterableTooLong(
-                "Literal in statement is too long!"
-                " ({0}, when {1} is max)".format(len(node.value), MAX_STRING_LENGTH)
+                "Literal in statement is too long! ({0}, when {1} is max)".format(
+                    len(node.value), MAX_STRING_LENGTH
+                )
             )
         return node.value
 
     def _eval_unaryop(self, node):
-        return self.operators[type(node.op)](self._eval(node.operand))
+        try:
+            operator = self.operators[type(node.op)]
+        except KeyError:
+            raise OperatorNotDefined(node.op, self.expr)
+        return operator(self._eval(node.operand))
 
     def _eval_binop(self, node):
-        return self.operators[type(node.op)](self._eval(node.left), self._eval(node.right))
+        try:
+            operator = self.operators[type(node.op)]
+        except KeyError:
+            raise OperatorNotDefined(node.op, self.expr)
+        return operator(self._eval(node.left), self._eval(node.right))
 
     def _eval_boolop(self, node):
+        to_return = False
         if isinstance(node.op, ast.And):
-            vout = False
             for value in node.values:
-                vout = self._eval(value)
-                if not vout:
-                    return vout
-            return vout
+                to_return = self._eval(value)
+                if not to_return:
+                    break
         elif isinstance(node.op, ast.Or):
             for value in node.values:
-                vout = self._eval(value)
-                if vout:
-                    return vout
-            return vout
+                to_return = self._eval(value)
+                if to_return:
+                    break
+        return to_return
 
     def _eval_compare(self, node):
         right = self._eval(node.left)
@@ -483,7 +537,7 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
                 func = self.functions[node.func.id]
             except KeyError:
                 raise FunctionNotDefined(node.func.id, self.expr)
-            except AttributeError as e:
+            except AttributeError:
                 raise FeatureNotAvailable("Lambda Functions not implemented")
 
             if func in DISALLOW_FUNCTIONS:
@@ -500,33 +554,37 @@ class SimpleEval(object):  # pylint: disable=too-few-public-methods
         try:
             # This happens at least for slicing
             # This is a safe thing to do because it is impossible
-            # that there is a true exression assigning to none
+            # that there is a true expression assigning to none
             # (the compiler rejects it, so you can't even
             # pass that to ast.parse)
-            if hasattr(self.names, "__getitem__"):
-                return self.names[node.id]
-            elif callable(self.names):
+            return self.names[node.id]
+
+        except (TypeError, KeyError):
+            pass
+
+        if callable(self.names):
+            try:
                 return self.names(node)
-            else:
-                raise InvalidExpression(
-                    'Trying to use name (variable) "{0}"'
-                    ' when no "names" defined for'
-                    " evaluator".format(node.id)
-                )
+            except NameNotDefined:
+                pass
+        elif not hasattr(self.names, "__getitem__"):
+            raise InvalidExpression(
+                'Trying to use name (variable) "{0}"'
+                ' when no "names" defined for'
+                " evaluator".format(node.id)
+            )
 
-        except KeyError:
-            if node.id in self.functions:
-                return self.functions[node.id]
+        if node.id in self.functions:
+            return self.functions[node.id]
 
-            raise NameNotDefined(node.id, self.expr)
+        raise NameNotDefined(node.id, self.expr)
 
     def _eval_subscript(self, node):
         container = self._eval(node.value)
         key = self._eval(node.slice)
-        try:
-            return container[key]
-        except KeyError:
-            raise
+        # Currently if there's a KeyError, that gets raised straight up.
+        # TODO: Should that be wrapped in an InvalidExpression?
+        return container[key]
 
     def _eval_attribute(self, node):
         for prefix in DISALLOW_PREFIXES:
@@ -595,6 +653,8 @@ class EvalWithCompoundTypes(SimpleEval):
     function editions. (list, tuple, dict, set).
     """
 
+    _max_count = 0
+
     def __init__(self, operators=None, functions=None, names=None):
         super(EvalWithCompoundTypes, self).__init__(operators, functions, names)
 
@@ -608,27 +668,52 @@ class EvalWithCompoundTypes(SimpleEval):
                 ast.Set: self._eval_set,
                 ast.ListComp: self._eval_comprehension,
                 ast.GeneratorExp: self._eval_comprehension,
+                ast.DictComp: self._eval_comprehension,
+                ast.SetComp: self._eval_comprehension,
             }
         )
 
-    def eval(self, expr):
+    def eval(self, expr, previously_parsed=None):
+        # reset _max_count for each eval run
         self._max_count = 0
-        return super(EvalWithCompoundTypes, self).eval(expr)
+        return super(EvalWithCompoundTypes, self).eval(expr, previously_parsed)
 
     def _eval_dict(self, node):
-        return {self._eval(k): self._eval(v) for (k, v) in zip(node.keys, node.values)}
+        result = {}
+
+        for key, value in zip(node.keys, node.values):
+            if key is None:
+                # "{**x}" gets parsed as a key-value pair of (None, Name(x))
+                result.update(self._eval(value))
+            else:
+                result[self._eval(key)] = self._eval(value)
+
+        return result
+
+    def _eval_list(self, node):
+        result = []
+
+        for item in node.elts:
+            if isinstance(item, ast.Starred):
+                result.extend(self._eval(item.value))
+            else:
+                result.append(self._eval(item))
+
+        return result
 
     def _eval_tuple(self, node):
         return tuple(self._eval(x) for x in node.elts)
-
-    def _eval_list(self, node):
-        return list(self._eval(x) for x in node.elts)
 
     def _eval_set(self, node):
         return set(self._eval(x) for x in node.elts)
 
     def _eval_comprehension(self, node):
-        to_return = []
+        if isinstance(node, ast.DictComp):
+            to_return = {}
+        elif isinstance(node, ast.SetComp):
+            to_return = set()
+        else:
+            to_return = []
 
         extra_names = {}
 
@@ -667,7 +752,12 @@ class EvalWithCompoundTypes(SimpleEval):
                     if len(node.generators) > gi + 1:
                         do_generator(gi + 1)
                     else:
-                        to_return.append(self._eval(node.elt))
+                        if isinstance(to_return, dict):
+                            to_return[self._eval(node.key)] = self._eval(node.value)
+                        elif isinstance(to_return, list):
+                            to_return.append(self._eval(node.elt))
+                        elif isinstance(to_return, set):
+                            to_return.add(self._eval(node.elt))
 
         try:
             do_generator()
@@ -678,6 +768,6 @@ class EvalWithCompoundTypes(SimpleEval):
 
 
 def simple_eval(expr, operators=None, functions=None, names=None):
-    """Simply evaluate an expresssion"""
+    """Simply evaluate an expression"""
     s = SimpleEval(operators=operators, functions=functions, names=names)
     return s.eval(expr)
